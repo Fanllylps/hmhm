@@ -28,6 +28,11 @@
   html {
     -webkit-tap-highlight-color: transparent;
   }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
   body {
     @apply bg-washi text-sumi font-sans antialiased;
     /* No double-tap zoom delay on rapid game taps… */

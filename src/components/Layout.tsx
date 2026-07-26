@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useLang, type Localized } from '../lib/i18n'
+import TakoTour from './TakoTour'
+import { useStore } from '../stores/store'
 
 const NAV: { to: string; jp: string; label: Localized }[] = [
   { to: '/', jp: '家', label: { en: 'Home', id: 'Beranda' } },
@@ -74,6 +76,7 @@ function DockTab({ to, label, jp }: { to: string; label: string; jp: string }) {
 export default function Layout() {
   const location = useLocation()
   const lang = useLang()
+  const showTour = useStore((s) => s.onboarded && s.tutorialSeen && !s.tourSeen)
 
   // Every tab starts at the top — otherwise a deep scroll on a long page (the
   // kana chart) carries over and drops you into the middle of the next one.
@@ -83,6 +86,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-dvh">
+      {showTour && location.pathname === '/' && <TakoTour />}
       <header className="sticky top-0 z-40 hidden border-b border-hairline bg-washi/90 backdrop-blur sm:block">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
           <NavLink to="/" className="flex items-center gap-2.5">
@@ -91,7 +95,7 @@ export default function Layout() {
             </span>
             <span className="text-base font-semibold tracking-tight">KanaFlow</span>
           </NavLink>
-          <nav className="flex items-center gap-1" aria-label="Main">
+          <nav data-tour="dock" className="flex items-center gap-1" aria-label="Main">
             {NAV.map((n) => (
               <NavItem key={n.to} to={n.to} jp={n.jp} label={n.label[lang]} />
             ))}
@@ -120,7 +124,7 @@ export default function Layout() {
         aria-label="Main"
         className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:hidden"
       >
-        <div className="pointer-events-auto mx-auto flex w-fit max-w-full items-center gap-0.5 rounded-full border border-hairline bg-surface/95 p-1.5 shadow-lift backdrop-blur">
+        <div data-tour="dock" className="pointer-events-auto mx-auto flex w-fit max-w-full items-center gap-0.5 rounded-full border border-hairline bg-surface/95 p-1.5 shadow-lift backdrop-blur">
           {NAV.map((n) => (
             <DockTab key={n.to} to={n.to} jp={n.jp} label={n.label[lang]} />
           ))}

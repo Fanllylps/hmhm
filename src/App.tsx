@@ -54,6 +54,7 @@ function useTheme() {
 export default function App() {
   const onboarded = useStore((s) => s.onboarded)
   const tutorialSeen = useStore((s) => s.tutorialSeen)
+  const tourSeen = useStore((s) => s.tourSeen)
   useTheme()
   useHtmlLang()
   return (
@@ -61,7 +62,7 @@ export default function App() {
       <BrowserRouter>
         {/* Nothing renders behind the onboarding overlay, so keyboard focus
             cannot escape into an invisible app. */}
-        {onboarded && tutorialSeen && <AchievementWatcher />}
+        {onboarded && tutorialSeen && tourSeen && <AchievementWatcher />}
         {!onboarded ? (
           <Onboarding />
         ) : !tutorialSeen ? (

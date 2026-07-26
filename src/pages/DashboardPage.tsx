@@ -159,7 +159,7 @@ function LevelCard({
       lang,
     ).catch(() => {})
   return (
-    <section className="rounded-2xl border border-hairline bg-surface p-5 shadow-soft">
+    <section data-tour="level" className="rounded-2xl border border-hairline bg-surface p-5 shadow-soft">
       <div className="flex items-center gap-4">
         <span
           aria-hidden
@@ -248,7 +248,7 @@ export default function DashboardPage() {
 
       {/* Primary CTA */}
       {pending > 0 ? (
-        <section className="relative overflow-hidden rounded-2xl border border-hairline bg-surface p-6 shadow-soft">
+        <section data-tour="review" className="relative overflow-hidden rounded-2xl border border-hairline bg-surface p-6 shadow-soft">
           <span
             aria-hidden
             className="pointer-events-none absolute -right-4 -top-8 select-none font-kana text-[8rem] leading-none text-hairline/60"
@@ -270,7 +270,7 @@ export default function DashboardPage() {
           </div>
         </section>
       ) : (
-        <section className="flex items-center gap-5 rounded-2xl border border-hairline bg-surface p-6 shadow-soft">
+        <section data-tour="review" className="flex items-center gap-5 rounded-2xl border border-hairline bg-surface p-6 shadow-soft">
           <span aria-hidden className="select-none font-kana text-5xl text-matcha/70">
             休
           </span>
@@ -292,7 +292,7 @@ export default function DashboardPage() {
       <LevelCard xp={state.xp} streak={stats.streak} mastered={stats.mastered} totalCards={stats.totalCards} />
 
       {/* Stat tiles */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div data-tour="stats" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label={t.dueToday}>{stats.dueCount}</StatTile>
         <StatTile label={t.newToday}>{stats.newRemaining}</StatTile>
         <StatTile label={t.dayStreak}>

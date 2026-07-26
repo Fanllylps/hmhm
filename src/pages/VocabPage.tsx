@@ -117,8 +117,8 @@ function VocabRow({
         onClick={() => speak(entry.kana, audio)}
         className="flex min-w-0 flex-1 items-baseline gap-3 text-left"
       >
-        <span className="shrink-0 font-kana text-xl leading-tight">{entry.kana}</span>
-        <span className="shrink-0 text-sm text-muted">{entry.romaji}</span>
+        <span className="max-w-[45%] truncate font-kana text-xl leading-tight">{entry.kana}</span>
+        <span className="max-w-[28%] truncate text-sm text-muted">{entry.romaji}</span>
         <span className="min-w-0 flex-1 truncate text-right text-sm text-muted">
           {meaningFor(entry, lang)}
         </span>

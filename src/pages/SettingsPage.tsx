@@ -265,10 +265,10 @@ function Segmented<T extends string>({
               />
             )}
             <span className="relative flex items-center justify-center gap-1.5">
-              <span aria-hidden className="font-kana text-base">
+              <span aria-hidden className="hidden font-kana text-base min-[400px]:inline">
                 {opt.jp}
               </span>
-              {opt.label}
+              <span className="truncate">{opt.label}</span>
             </span>
           </button>
         )

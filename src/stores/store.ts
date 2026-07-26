@@ -82,6 +82,8 @@ interface AppState {
   onboarded: boolean
   /** The animated how-to tour has been completed (or skipped). */
   tutorialSeen: boolean
+  /** The mascot's dashboard walkthrough has been completed (or skipped). */
+  tourSeen: boolean
   settings: Settings
   cards: Record<string, SrsCard>
   /** New cards introduced per day, keyed by dayKey. */
@@ -100,6 +102,7 @@ interface AppState {
 
   completeOnboarding: (settings: Partial<Settings>) => void
   completeTutorial: () => void
+  completeTour: () => void
   updateSettings: (partial: Partial<Settings>) => void
   rateCard: (id: string, rating: Rating) => SrsCard
   /**
@@ -141,6 +144,7 @@ export interface ExportPayload {
     /** Absent in backups made before custom stories existed. */
     customStories?: Story[]
     tutorialSeen?: boolean
+    tourSeen?: boolean
   }
 }
 
@@ -162,6 +166,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       onboarded: false,
       tutorialSeen: false,
+      tourSeen: false,
       settings: DEFAULT_SETTINGS,
       cards: {},
       newHistory: {},
@@ -176,6 +181,8 @@ export const useStore = create<AppState>()(
         set((s) => ({ onboarded: true, settings: { ...s.settings, ...settings } })),
 
       completeTutorial: () => set({ tutorialSeen: true }),
+
+      completeTour: () => set({ tourSeen: true }),
 
       updateSettings: (partial) =>
         set((s) => ({ settings: { ...s.settings, ...partial } })),
@@ -292,12 +299,14 @@ export const useStore = create<AppState>()(
           customVocab: Array.isArray(data.customVocab) ? data.customVocab : [],
           customStories: Array.isArray(data.customStories) ? data.customStories : [],
           tutorialSeen: data.tutorialSeen ?? true,
+          tourSeen: data.tourSeen ?? true,
         }),
 
       resetProgress: () =>
         set({
           onboarded: false,
           tutorialSeen: false,
+          tourSeen: false,
           cards: {},
           newHistory: {},
           activity: {},
@@ -424,6 +433,7 @@ export function buildExportPayload(state: AppState): ExportPayload {
       customVocab: state.customVocab,
       customStories: state.customStories,
       tutorialSeen: state.tutorialSeen,
+      tourSeen: state.tourSeen,
     },
   }
 }
