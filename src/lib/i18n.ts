@@ -24,6 +24,19 @@ export function localizedMeaning(entryId: string, english: string, lang: Lang): 
   return lang === 'id' ? (MEANING_ID[entryId] ?? english) : english
 }
 
+/**
+ * Meaning for a study entry: prefers an inline Indonesian meaning (custom and
+ * built-in vocabulary), then the MEANING_ID map (kanji), then English.
+ */
+export function meaningFor(
+  entry: { id: string; meaning?: string; meaningId?: string },
+  lang: Lang,
+): string | undefined {
+  if (!entry.meaning) return undefined
+  if (lang === 'id') return entry.meaningId ?? MEANING_ID[entry.id] ?? entry.meaning
+  return entry.meaning
+}
+
 /** Locale string for date formatting. */
 export function dateLocale(lang: Lang): string {
   return lang === 'id' ? 'id-ID' : 'en-US'

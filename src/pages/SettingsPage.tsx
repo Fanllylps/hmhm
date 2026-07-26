@@ -27,6 +27,7 @@ const EN = {
     dakuten: { label: 'Dakuten & handakuten', desc: 'ga · za · da · ba · pa' },
     yoon: { label: 'Yōon', desc: 'kya · shu · cho combinations' },
     kanji: { label: 'Kanji (JLPT N5)', desc: '80 kanji with meanings & readings' },
+    vocab: { label: 'Daily vocabulary', desc: 'Everyday words & phrases — built-in + yours' },
   },
   keepOne: 'Keep at least one group on',
   newPerDay: 'New cards per day',
@@ -76,6 +77,7 @@ const ID: typeof EN = {
     dakuten: { label: 'Dakuten & handakuten', desc: 'ga · za · da · ba · pa' },
     yoon: { label: 'Yōon', desc: 'gabungan kya · shu · cho' },
     kanji: { label: 'Kanji (JLPT N5)', desc: '80 kanji dengan arti & cara baca' },
+    vocab: { label: 'Kosakata harian', desc: 'Kata & frasa sehari-hari — bawaan + tambahanmu' },
   },
   keepOne: 'Minimal satu kelompok harus aktif',
   newPerDay: 'Kartu baru per hari',
@@ -120,12 +122,13 @@ const SCRIPT_JP: Record<Settings['scripts'], string> = {
   katakana: 'ア',
   both: 'あア',
 }
-const GROUP_KEYS = ['basic', 'dakuten', 'yoon', 'kanji'] as const
+const GROUP_KEYS = ['basic', 'dakuten', 'yoon', 'kanji', 'vocab'] as const
 const GROUP_JP: Record<(typeof GROUP_KEYS)[number], string> = {
   basic: 'あ',
   dakuten: 'が',
   yoon: 'きゃ',
   kanji: '日',
+  vocab: '語',
 }
 const NEW_PER_DAY_OPTIONS = [5, 10, 15, 20, 30]
 const THEME_JP: Record<Settings['theme'], string> = { system: '自', light: '昼', dark: '夜' }
@@ -299,7 +302,7 @@ export default function SettingsPage() {
   const setGroup = (key: (typeof GROUP_KEYS)[number], value: boolean) => {
     const next = { ...settings.groups, [key]: value }
     // Guard: at least one group must stay enabled.
-    if (!next.basic && !next.dakuten && !next.yoon && !next.kanji) return
+    if (!next.basic && !next.dakuten && !next.yoon && !next.kanji && !next.vocab) return
     updateSettings({ groups: next })
   }
 

@@ -19,6 +19,7 @@ import KanaChartPage from './pages/KanaChartPage'
 import SettingsPage from './pages/SettingsPage'
 import WritingPage from './pages/WritingPage'
 import AchievementsPage from './pages/AchievementsPage'
+import VocabPage from './pages/VocabPage'
 import AchievementWatcher from './components/AchievementWatcher'
 
 /** Keep the document language in sync for screen readers and hyphenation. */
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="practice/words" element={<WordModePage />} />
             <Route path="practice/writing" element={<WritingPage />} />
             <Route path="achievements" element={<AchievementsPage />} />
+            <Route path="vocab" element={<VocabPage />} />
             <Route path="chart" element={<KanaChartPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

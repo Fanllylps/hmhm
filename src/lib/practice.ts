@@ -19,7 +19,9 @@ export function usePracticePool(min = 8): KanaEntry[] {
   const settings = useStore((s) => s.settings)
   const cards = useStore((s) => s.cards)
   return useMemo(() => {
-    const pool = activePool(settings)
+    // Vocabulary lives in Review and its own browser — long words would break
+    // the game layouts, so games draw from kana + kanji only.
+    const pool = activePool(settings).filter((e) => e.group !== 'vocab')
     const seen = pool.filter((e) => cards[e.id] !== undefined)
     const chosen = seen.length >= min ? seen : pool
     return chosen.length > 0 ? chosen : KANA.filter((e) => e.script === 'hiragana' && e.group === 'basic')

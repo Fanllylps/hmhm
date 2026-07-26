@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { KANA, type KanaEntry } from '../data/kana'
 import { KANJI } from '../data/kanji'
+import { customVocabEntry, VOCAB } from '../data/vocab'
+import type { CustomVocabItem } from '../lib/vocabImport'
 import { computeStreak, dayKey, type DayActivity } from '../lib/dates'
 import { haptic } from '../lib/haptics'
 import {
@@ -35,6 +37,8 @@ export interface Settings {
     yoon: boolean
     /** JLPT N5 kanji deck. */
     kanji: boolean
+    /** Everyday vocabulary deck (built-in + custom). */
+    vocab: boolean
   }
   newPerDay: number
   audio: boolean
@@ -56,7 +60,7 @@ export interface BestScores {
 
 export const DEFAULT_SETTINGS: Settings = {
   scripts: 'hiragana',
-  groups: { basic: true, dakuten: false, yoon: false, kanji: false },
+  groups: { basic: true, dakuten: false, yoon: false, kanji: false, vocab: false },
   newPerDay: 10,
   audio: true,
   lenient: true,
@@ -86,6 +90,8 @@ interface AppState {
   xp: number
   /** Achievement id → unlock timestamp. */
   unlockedAchievements: Record<string, number>
+  /** User-added vocabulary (pasted from an AI or typed by hand). */
+  customVocab: CustomVocabItem[]
 
   completeOnboarding: (settings: Partial<Settings>) => void
   updateSettings: (partial: Partial<Settings>) => void
@@ -99,6 +105,9 @@ interface AppState {
   submitMatchingTime: (seconds: number) => void
   /** Record newly earned achievements (ignores already-unlocked ids). */
   unlockAchievements: (ids: string[]) => void
+  /** Add custom vocabulary, skipping duplicates. Returns [added, skipped]. */
+  addCustomVocab: (items: CustomVocabItem[]) => [number, number]
+  removeCustomVocab: (kana: string) => void
   importAll: (data: ExportPayload['data']) => void
   resetProgress: () => void
 }
@@ -118,6 +127,8 @@ export interface ExportPayload {
     xp?: number
     /** Absent in backups made before achievements existed. */
     unlockedAchievements?: Record<string, number>
+    /** Absent in backups made before custom vocabulary existed. */
+    customVocab?: CustomVocabItem[]
   }
 }
 
@@ -145,6 +156,7 @@ export const useStore = create<AppState>()(
       best: DEFAULT_BEST,
       xp: 0,
       unlockedAchievements: {},
+      customVocab: [],
 
       completeOnboarding: (settings) =>
         set((s) => ({ onboarded: true, settings: { ...s.settings, ...settings } })),
@@ -193,6 +205,27 @@ export const useStore = create<AppState>()(
           best: { ...s.best, [game]: Math.max(s.best[game], score) },
         })),
 
+      addCustomVocab: (items) => {
+        const s = get()
+        const taken = new Set([
+          ...VOCAB.map((e) => e.kana),
+          ...s.customVocab.map((c) => c.kana),
+        ])
+        const fresh: CustomVocabItem[] = []
+        for (const item of items) {
+          if (taken.has(item.kana)) continue
+          taken.add(item.kana)
+          fresh.push(item)
+        }
+        const room = Math.max(0, 1000 - s.customVocab.length)
+        const accepted = fresh.slice(0, room)
+        if (accepted.length > 0) set({ customVocab: [...s.customVocab, ...accepted] })
+        return [accepted.length, items.length - accepted.length]
+      },
+
+      removeCustomVocab: (kana) =>
+        set((s) => ({ customVocab: s.customVocab.filter((c) => c.kana !== kana) })),
+
       unlockAchievements: (ids) =>
         set((s) => {
           const fresh = ids.filter((id) => s.unlockedAchievements[id] === undefined)
@@ -222,6 +255,7 @@ export const useStore = create<AppState>()(
           best: { ...DEFAULT_BEST, ...data.best },
           xp: typeof data.xp === 'number' ? data.xp : 0,
           unlockedAchievements: data.unlockedAchievements ?? {},
+          customVocab: Array.isArray(data.customVocab) ? data.customVocab : [],
         }),
 
       resetProgress: () =>
@@ -265,15 +299,21 @@ export const useStore = create<AppState>()(
 
 // ---------- Selectors / helpers ----------
 
-export function activePool(settings: Settings): KanaEntry[] {
-  return [...KANA, ...KANJI].filter((k) => {
-    // Kanji sit outside the hiragana/katakana script choice — their own toggle.
-    if (k.group === 'kanji') return settings.groups.kanji
-    if (settings.scripts !== 'both' && k.script !== settings.scripts) return false
-    if (k.group === 'basic') return settings.groups.basic
-    if (k.group === 'dakuten' || k.group === 'handakuten') return settings.groups.dakuten
-    return settings.groups.yoon
-  })
+export function activePool(settings: Settings, customVocab: CustomVocabItem[] = []): KanaEntry[] {
+  const vocabPool = settings.groups.vocab
+    ? [...VOCAB, ...customVocab.map(customVocabEntry)]
+    : []
+  return [
+    ...KANA.filter((k) => {
+      if (settings.scripts !== 'both' && k.script !== settings.scripts) return false
+      if (k.group === 'basic') return settings.groups.basic
+      if (k.group === 'dakuten' || k.group === 'handakuten') return settings.groups.dakuten
+      return settings.groups.yoon
+    }),
+    // Kanji and vocabulary sit outside the script choice — their own toggles.
+    ...(settings.groups.kanji ? KANJI : []),
+    ...vocabPool,
+  ]
 }
 
 export function newIntroducedToday(newHistory: Record<string, number>, now = Date.now()): number {
@@ -293,10 +333,10 @@ export interface DashboardStats {
 }
 
 export function computeStats(
-  state: Pick<AppState, 'cards' | 'activity' | 'newHistory' | 'settings'>,
+  state: Pick<AppState, 'cards' | 'activity' | 'newHistory' | 'settings' | 'customVocab'>,
   now = Date.now(),
 ): DashboardStats {
-  const pool = activePool(state.settings)
+  const pool = activePool(state.settings, state.customVocab)
   const cards = pool.map((k) => state.cards[k.id]).filter((c): c is SrsCard => c !== undefined)
   const dueCount = cards.filter((c) => isDue(c, now)).length
   const introduced = new Set(cards.filter((c) => c.phase !== 'new').map((c) => c.id))
@@ -341,6 +381,7 @@ export function buildExportPayload(state: AppState): ExportPayload {
       best: state.best,
       xp: state.xp,
       unlockedAchievements: state.unlockedAchievements,
+      customVocab: state.customVocab,
     },
   }
 }

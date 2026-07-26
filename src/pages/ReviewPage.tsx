@@ -5,11 +5,11 @@ import Confetti from '../components/Confetti'
 import EmptyState from '../components/EmptyState'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
-import { STUDY_BY_ID } from '../data/study'
+import { studyEntry } from '../data/study'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { haptic } from '../lib/haptics'
-import { localizedMeaning, useLang } from '../lib/i18n'
+import { meaningFor, useLang } from '../lib/i18n'
 import {
   buildQueue,
   createCard,
@@ -200,7 +200,7 @@ export default function ReviewPage() {
   useEffect(() => {
     const s = useStore.getState()
     const now = Date.now()
-    const poolIds = activePool(s.settings).map((k) => k.id)
+    const poolIds = activePool(s.settings, s.customVocab).map((k) => k.id)
     const limit = s.settings.newPerDay - newIntroducedToday(s.newHistory, now)
     const q = buildQueue(s.cards, poolIds, limit, now)
     const items = [
@@ -219,7 +219,8 @@ export default function ReviewPage() {
 
   const current = queue !== null && queue.length > 0 ? queue[0] : null
   const currentCard = useStore((s) => (current ? s.cards[current.id] : undefined))
-  const entry = current ? STUDY_BY_ID[current.id] : null
+  const customVocab = useStore((s) => s.customVocab)
+  const entry = current ? (studyEntry(current.id, customVocab) ?? null) : null
   const isNewCard = current !== null && (currentCard === undefined || currentCard.phase === 'new')
 
   const previews = useMemo(() => {
@@ -351,7 +352,7 @@ export default function ReviewPage() {
                 <span className="mt-4 text-4xl font-semibold tracking-wide">{entry.romaji}</span>
                 {entry.meaning && (
                   <span className="mt-1.5 text-sm text-muted">
-                    {localizedMeaning(entry.id, entry.meaning, lang)}
+                    {meaningFor(entry, lang)}
                   </span>
                 )}
                 <button

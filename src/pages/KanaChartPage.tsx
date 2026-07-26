@@ -25,7 +25,7 @@ import {
 } from '../lib/srs'
 import { useStore, type Lang } from '../stores/store'
 
-type ChartGroup = Exclude<KanaGroup, 'kanji'>
+type ChartGroup = Exclude<KanaGroup, 'kanji' | 'vocab'>
 
 const EN = {
   subtitle: 'Tap any kana to see its details',

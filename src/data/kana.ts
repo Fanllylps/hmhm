@@ -1,5 +1,5 @@
-export type Script = 'hiragana' | 'katakana' | 'kanji'
-export type KanaGroup = 'basic' | 'dakuten' | 'handakuten' | 'yoon' | 'kanji'
+export type Script = 'hiragana' | 'katakana' | 'kanji' | 'vocab'
+export type KanaGroup = 'basic' | 'dakuten' | 'handakuten' | 'yoon' | 'kanji' | 'vocab'
 
 export interface KanaEntry {
   id: string
@@ -11,8 +11,10 @@ export interface KanaEntry {
   group: KanaGroup
   /** Gojūon row key (e.g. 'a', 'kya') — or a topic key for kanji entries. */
   row: string
-  /** English meaning — kanji entries only. */
+  /** English meaning — kanji and vocabulary entries only. */
   meaning?: string
+  /** Indonesian meaning carried on the entry itself (custom vocabulary). */
+  meaningId?: string
 }
 
 interface BaseDef {
@@ -118,7 +120,7 @@ export const KANA_BY_ID: Record<string, KanaEntry> = Object.fromEntries(
  * Chart layout in traditional gojūon order (hiragana glyphs; convert with
  * toKatakana for the katakana chart). `null` marks empty grid slots.
  */
-export const CHART_LAYOUT: Record<Exclude<KanaGroup, 'kanji'>, (string | null)[][]> = {
+export const CHART_LAYOUT: Record<Exclude<KanaGroup, 'kanji' | 'vocab'>, (string | null)[][]> = {
   basic: [
     ['あ', 'い', 'う', 'え', 'お'],
     ['か', 'き', 'く', 'け', 'こ'],

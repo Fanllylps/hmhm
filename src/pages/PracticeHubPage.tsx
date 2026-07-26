@@ -18,6 +18,7 @@ const EN = {
     listening: 'Hear it, pick the right kana.',
     words: 'Read real Japanese words in kana.',
     writing: 'Draw each character stroke by stroke.',
+    vocab: 'Browse & memorize everyday vocabulary.',
   },
 }
 
@@ -35,6 +36,7 @@ const ID: typeof EN = {
     listening: 'Dengarkan, lalu pilih kana yang benar.',
     words: 'Baca kata Jepang asli dalam kana.',
     writing: 'Gambar tiap karakter goresan demi goresan.',
+    vocab: 'Jelajahi & hafalkan kosakata sehari-hari.',
   },
 }
 
@@ -59,6 +61,7 @@ const MODES: Mode[] = [
   { to: '/practice/listening', title: 'Listening', jp: '聴く', key: 'listening', icon: 'き' },
   { to: '/practice/words', title: 'Word Mode', jp: '言葉', key: 'words', icon: 'ね' },
   { to: '/practice/writing', title: 'Writing', jp: '書く', key: 'writing', icon: '筆' },
+  { to: '/vocab', title: 'Vocabulary', jp: '語彙', key: 'vocab', icon: '語' },
 ]
 
 export default function PracticeHubPage() {
