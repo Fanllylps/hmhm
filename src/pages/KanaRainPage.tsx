@@ -430,12 +430,16 @@ export default function KanaRainPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader
-        title="Kana Rain"
-        jp="雨"
-        subtitle="Type the romaji before the kana reaches the ground."
-        backTo="/practice"
-      />
+      {/* The full header only outside of play — during a game every vertical
+          pixel matters on a phone with the keyboard up. */}
+      {phase !== 'playing' && (
+        <PageHeader
+          title="Kana Rain"
+          jp="雨"
+          subtitle="Type the romaji before the kana reaches the ground."
+          backTo="/practice"
+        />
+      )}
 
       <AnimatePresence mode="wait" initial={false}>
         {phase === 'idle' && (
@@ -453,18 +457,33 @@ export default function KanaRainPage() {
             transition={{ duration: 0.15 }}
           >
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm text-muted">
-                Score{' '}
-                <span className="ml-1 text-lg font-semibold tabular-nums text-sumi">{score}</span>
+              <div className="flex items-baseline gap-2.5">
+                <span aria-hidden className="font-kana text-sm text-muted">
+                  雨
+                </span>
+                <div className="text-sm text-muted">
+                  Score{' '}
+                  <span className="ml-1 text-lg font-semibold tabular-nums text-sumi">
+                    {score}
+                  </span>
+                </div>
               </div>
-              <div
-                role="status"
-                aria-label={`${lives} of ${LIVES} lives left`}
-                className="flex items-center gap-1.5"
-              >
-                {Array.from({ length: LIVES }, (_, i) => (
-                  <Heart key={i} filled={i < lives} />
-                ))}
+              <div className="flex items-center gap-3">
+                <div
+                  role="status"
+                  aria-label={`${lives} of ${LIVES} lives left`}
+                  className="flex items-center gap-1.5"
+                >
+                  {Array.from({ length: LIVES }, (_, i) => (
+                    <Heart key={i} filled={i < lives} />
+                  ))}
+                </div>
+                <button
+                  onClick={quitGame}
+                  className="rounded-full border border-hairline px-3 py-1 text-xs font-medium text-muted transition-colors hover:text-sumi"
+                >
+                  End
+                </button>
               </div>
             </div>
 
@@ -474,7 +493,7 @@ export default function KanaRainPage() {
                 e.preventDefault()
                 inputRef.current?.focus()
               }}
-              className="relative h-[60dvh] min-h-[340px] cursor-text overflow-hidden rounded-2xl border border-hairline bg-surface shadow-soft"
+              className="relative h-[calc(100dvh-19rem)] min-h-[260px] cursor-text overflow-hidden rounded-2xl border border-hairline bg-surface shadow-soft sm:h-[60dvh] sm:min-h-[340px]"
             >
               {/* ground line */}
               <div
@@ -567,9 +586,8 @@ export default function KanaRainPage() {
                 wrong ? 'border-vermilion' : 'border-hairline'
               }`}
             />
-            <p className="mt-3 text-center text-xs text-muted">
-              Enter to pop · exact matches pop on their own
-              <span className="hidden sm:inline"> · Esc to quit</span>
+            <p className="mt-3 hidden text-center text-xs text-muted sm:block">
+              Enter to pop · exact matches pop on their own · Esc to quit
             </p>
           </motion.div>
         )}

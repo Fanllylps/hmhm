@@ -56,7 +56,8 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 sm:px-6 sm:pb-16 sm:pt-10">
+      {/* Top padding includes the notch/status-bar inset for installed PWAs. */}
+      <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-[calc(1.5rem+env(safe-area-inset-top))] sm:px-6 sm:pb-16 sm:pt-10">
         {/* Keyed on the path so each page remounts and fades in. Deliberately
             no AnimatePresence/exit here: the child is <Outlet />, whose content
             swaps as soon as the route changes, so an exiting wrapper would be

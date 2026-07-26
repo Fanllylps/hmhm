@@ -67,13 +67,13 @@ function LevelCard({ xp }: { xp: number }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
-            <div className="flex items-baseline gap-2">
-              <span className="font-semibold">{info.title}</span>
-              <span aria-hidden className="font-kana text-sm text-muted">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="truncate font-semibold">{info.title}</span>
+              <span aria-hidden className="hidden whitespace-nowrap font-kana text-sm text-muted sm:inline">
                 {info.jpTitle}
               </span>
             </div>
-            <span className="text-xs tabular-nums text-muted">
+            <span className="whitespace-nowrap text-xs tabular-nums text-muted">
               {info.intoLevel} / {info.needed} XP
             </span>
           </div>
@@ -86,7 +86,10 @@ function LevelCard({ xp }: { xp: number }) {
             />
           </div>
           <div className="mt-1.5 flex items-baseline justify-between gap-3 text-xs text-muted">
-            <span>Reviews and games earn XP · {info.totalXp.toLocaleString()} total</span>
+            <span className="truncate">
+              <span className="hidden sm:inline">Reviews and games earn XP · </span>
+              {info.totalXp.toLocaleString()} XP total
+            </span>
             <Link
               to="/achievements"
               className="shrink-0 font-medium text-vermilion transition-opacity hover:opacity-80"

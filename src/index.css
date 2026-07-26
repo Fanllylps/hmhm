@@ -30,6 +30,10 @@
   }
   body {
     @apply bg-washi text-sumi font-sans antialiased;
+    /* No double-tap zoom delay on rapid game taps… */
+    touch-action: manipulation;
+    /* …and no accidental pull-to-refresh mid-game. */
+    overscroll-behavior-y: contain;
   }
   :focus-visible {
     @apply outline-none ring-2 ring-vermilion/50 ring-offset-2 ring-offset-washi rounded-lg;
