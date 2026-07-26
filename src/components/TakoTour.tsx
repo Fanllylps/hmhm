@@ -190,14 +190,14 @@ export default function TakoTour() {
             : { bottom: 'calc(env(safe-area-inset-bottom) + 20px)' }
         }
       >
-        <div className="mx-auto flex max-w-md items-end gap-2">
+        <div className="mx-auto flex max-w-md items-end gap-1.5">
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.7 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ type: 'spring', stiffness: 300, damping: 22 }}
             className="shrink-0"
           >
-            <Tako />
+            <Tako size={72} />
           </motion.div>
           <div className="relative min-w-0 flex-1">
             {/* bubble tail */}
@@ -215,32 +215,32 @@ export default function TakoTour() {
                 className="relative rounded-2xl border border-hairline bg-surface p-4 shadow-lift"
               >
                 <p className="text-[15px] leading-relaxed">{t.steps[step].body}</p>
-                <div className="mt-3.5 flex items-center justify-between gap-3">
+                {/* Dots get their own row — the footer was overflowing the
+                    bubble on 360px screens and clipping the button. */}
+                <div aria-hidden className="mt-3 flex justify-center gap-1">
+                  {STEP_TARGETS.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        i === step ? 'w-4 bg-vermilion' : 'w-1.5 bg-hairline'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="mt-2.5 flex items-center justify-between gap-2">
                   <button
                     onClick={completeTour}
-                    className="whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium text-muted transition-colors hover:text-sumi"
+                    className="min-w-0 truncate rounded-full px-2 py-1 text-xs font-medium text-muted transition-colors hover:text-sumi"
                   >
                     {t.skip}
                   </button>
-                  <div className="flex items-center gap-2.5">
-                    <span aria-hidden className="flex gap-1">
-                      {STEP_TARGETS.map((_, i) => (
-                        <span
-                          key={i}
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
-                            i === step ? 'w-4 bg-vermilion' : 'w-1.5 bg-hairline'
-                          }`}
-                        />
-                      ))}
-                    </span>
-                    <motion.button
-                      whileTap={{ scale: 0.94 }}
-                      onClick={next}
-                      className="rounded-xl bg-vermilion px-4 py-2 text-sm font-semibold text-surface shadow-soft"
-                    >
-                      {t.steps[step].btn}
-                    </motion.button>
-                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.94 }}
+                    onClick={next}
+                    className="shrink-0 whitespace-nowrap rounded-xl bg-vermilion px-4 py-2 text-sm font-semibold text-surface shadow-soft"
+                  >
+                    {t.steps[step].btn}
+                  </motion.button>
                 </div>
               </motion.div>
             </AnimatePresence>
