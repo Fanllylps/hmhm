@@ -16,15 +16,56 @@ function NavItem({ to, label, jp }: { to: string; label: string; jp: string }) {
       to={to}
       end={to === '/'}
       className={({ isActive }) =>
-        `flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors sm:flex-row sm:gap-2 sm:text-sm ${
+        `flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium transition-colors ${
           isActive ? 'text-vermilion' : 'text-muted hover:text-sumi'
         }`
       }
     >
-      <span aria-hidden className="font-kana text-base leading-none sm:text-sm">
+      <span aria-hidden className="font-kana text-sm leading-none">
         {jp}
       </span>
       {label}
+    </NavLink>
+  )
+}
+
+/** Mobile dock tab: the active tab expands into a vermilion pill that glides
+    between tabs (shared layoutId). */
+function DockTab({ to, label, jp }: { to: string; label: string; jp: string }) {
+  return (
+    <NavLink to={to} end={to === '/'} aria-label={label} className="outline-none">
+      {({ isActive }) => (
+        <motion.span
+          whileTap={{ scale: 0.92 }}
+          className="relative flex h-11 items-center justify-center gap-1.5 rounded-full px-3.5"
+        >
+          {isActive && (
+            <motion.span
+              layoutId="dock-pill"
+              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              className="absolute inset-0 rounded-full bg-vermilion/10"
+            />
+          )}
+          <span
+            aria-hidden
+            className={`relative font-kana text-xl leading-none transition-colors duration-200 ${
+              isActive ? 'text-vermilion' : 'text-muted'
+            }`}
+          >
+            {jp}
+          </span>
+          {isActive && (
+            <motion.span
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.18, delay: 0.06 }}
+              className="relative text-xs font-semibold text-vermilion"
+            >
+              {label}
+            </motion.span>
+          )}
+        </motion.span>
+      )}
     </NavLink>
   )
 }
@@ -72,13 +113,14 @@ export default function Layout() {
         </motion.div>
       </main>
 
+      {/* Floating dock — detached from the screen edge, hanko-tinted active pill. */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:hidden"
       >
-        <div className="mx-auto flex max-w-md items-stretch justify-around px-2 py-1.5">
+        <div className="pointer-events-auto mx-auto flex w-fit max-w-full items-center gap-0.5 rounded-full border border-hairline bg-surface/95 p-1.5 shadow-lift backdrop-blur">
           {NAV.map((n) => (
-            <NavItem key={n.to} {...n} />
+            <DockTab key={n.to} {...n} />
           ))}
         </div>
       </nav>
