@@ -157,11 +157,11 @@ export const useStore = create<AppState>()(
 
       importAll: (data) =>
         set({
-          onboarded: data.onboarded,
+          onboarded: data.onboarded ?? false,
           settings: { ...DEFAULT_SETTINGS, ...data.settings },
-          cards: data.cards,
-          newHistory: data.newHistory,
-          activity: data.activity,
+          cards: data.cards ?? {},
+          newHistory: data.newHistory ?? {},
+          activity: data.activity ?? {},
           best: { ...DEFAULT_BEST, ...data.best },
         }),
 
@@ -260,17 +260,24 @@ export function buildExportPayload(state: AppState): ExportPayload {
   }
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 export function parseImportPayload(text: string): ExportPayload['data'] {
   const parsed: unknown = JSON.parse(text)
   if (
-    typeof parsed !== 'object' ||
-    parsed === null ||
-    (parsed as ExportPayload).app !== 'kanaflow' ||
-    typeof (parsed as ExportPayload).schema !== 'number' ||
-    (parsed as ExportPayload).schema > SCHEMA_VERSION ||
-    typeof (parsed as ExportPayload).data !== 'object'
+    !isRecord(parsed) ||
+    parsed.app !== 'kanaflow' ||
+    typeof parsed.schema !== 'number' ||
+    !(parsed.schema <= SCHEMA_VERSION) || // also rejects NaN
+    !isRecord(parsed.data) ||
+    !isRecord(parsed.data.cards) ||
+    !isRecord(parsed.data.newHistory) ||
+    !isRecord(parsed.data.activity) ||
+    typeof parsed.data.onboarded !== 'boolean'
   ) {
     throw new Error('Not a valid KanaFlow backup file.')
   }
-  return (parsed as ExportPayload).data
+  return parsed.data as unknown as ExportPayload['data']
 }

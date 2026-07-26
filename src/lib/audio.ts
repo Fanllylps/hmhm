@@ -17,6 +17,19 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   })
 }
 
+/** Whether this browser supports speech synthesis at all. */
+export function speechAvailable(): boolean {
+  return typeof window !== 'undefined' && 'speechSynthesis' in window
+}
+
+/**
+ * Whether a Japanese voice is installed. Voices may load asynchronously —
+ * listen to `voiceschanged` and re-check before treating false as final.
+ */
+export function hasJapaneseVoice(): boolean {
+  return speechAvailable() && pickJapaneseVoice() !== null
+}
+
 /** Speak kana out loud with a ja-JP voice. No-op when unsupported or disabled. */
 export function speak(text: string, enabled = true): void {
   if (!enabled) return

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
-import { speak } from '../lib/audio'
+import { hasJapaneseVoice, speak, speechAvailable } from '../lib/audio'
 import { pickChoices, usePracticePool } from '../lib/practice'
 import { useStore } from '../stores/store'
 
@@ -66,6 +66,18 @@ export default function ListeningPage() {
   // Snapshot the pool at game start so store updates mid-game don't reshuffle.
   const poolRef = useRef<KanaEntry[]>([])
   const advanceTimer = useRef<number | null>(null)
+
+  // TTS capability: voices can load asynchronously, so re-check on voiceschanged.
+  const [tts, setTts] = useState<'unsupported' | 'no-voice' | 'ready'>(() =>
+    speechAvailable() ? (hasJapaneseVoice() ? 'ready' : 'no-voice') : 'unsupported',
+  )
+  useEffect(() => {
+    if (!speechAvailable()) return
+    const update = () => setTts(hasJapaneseVoice() ? 'ready' : 'no-voice')
+    update()
+    window.speechSynthesis.addEventListener('voiceschanged', update)
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', update)
+  }, [])
 
   useEffect(
     () => () => {
@@ -137,7 +149,7 @@ export default function ListeningPage() {
     useCallback(
       (e: KeyboardEvent) => {
         if (phase === 'idle') {
-          if (e.key === 'Enter' || e.key === ' ') {
+          if ((e.key === 'Enter' || e.key === ' ') && tts !== 'unsupported') {
             e.preventDefault()
             start()
           }
@@ -151,7 +163,7 @@ export default function ListeningPage() {
         const idx = ['1', '2', '3', '4'].indexOf(e.key)
         if (idx >= 0) choose(idx)
       },
-      [phase, start, round, play, choose],
+      [phase, start, round, play, choose, tts],
     ),
   )
 
@@ -180,16 +192,29 @@ export default function ListeningPage() {
             back into review sooner.
           </p>
           <motion.button
-            whileTap={{ scale: 0.98 }}
+            whileTap={tts === 'unsupported' ? undefined : { scale: 0.98 }}
             onClick={start}
-            className="mt-8 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface"
+            disabled={tts === 'unsupported'}
+            className="mt-8 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface disabled:cursor-not-allowed disabled:opacity-40"
           >
             Start listening
           </motion.button>
-          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted">
-            <SpeakerIcon size={13} />
-            Make sure your device sound is on
-          </p>
+          {tts === 'unsupported' ? (
+            <p className="mt-4 max-w-sm text-xs font-medium text-vermilion" role="alert">
+              This browser has no speech support — Listening needs a Japanese text-to-speech
+              voice. Try Chrome, Edge or Safari.
+            </p>
+          ) : tts === 'no-voice' ? (
+            <p className="mt-4 max-w-sm text-xs font-medium text-vermilion" role="alert">
+              No Japanese voice was found on this device, so audio may be silent or mispronounced.
+              Install a Japanese TTS voice (or try another browser) for the real experience.
+            </p>
+          ) : (
+            <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted">
+              <SpeakerIcon size={13} />
+              Make sure your device sound is on
+            </p>
+          )}
         </motion.div>
       </div>
     )

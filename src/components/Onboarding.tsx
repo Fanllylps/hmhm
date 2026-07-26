@@ -23,7 +23,12 @@ export default function Onboarding() {
   const [pace, setPace] = useState(10)
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-washi">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome to KanaFlow"
+      className="fixed inset-0 z-50 overflow-y-auto bg-washi"
+    >
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-12">
         <AnimatePresence mode="wait">
           {step === 0 && (
@@ -48,6 +53,7 @@ export default function Onboarding() {
               </p>
               <button
                 onClick={() => setStep(1)}
+                autoFocus
                 className="mt-10 w-full rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface shadow-soft transition-transform active:scale-[0.98]"
               >
                 Get started

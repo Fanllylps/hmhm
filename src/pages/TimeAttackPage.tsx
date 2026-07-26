@@ -83,6 +83,9 @@ export default function TimeAttackPage() {
     setPhase('over')
   }, [phase, timeLeft, score, submitScore, clearFlashTimer])
 
+  /** Screen-reader announcement of each answer's result. */
+  const [announce, setAnnounce] = useState('')
+
   const start = useCallback(() => {
     poolRef.current = livePool
     clearFlashTimer()
@@ -91,6 +94,7 @@ export default function TimeAttackPage() {
     setTimeLeft(GAME_SECONDS)
     setWrongPick(null)
     setNewRecord(false)
+    setAnnounce('')
     setQuestion(makeQuestion(livePool, null))
     setQIndex(0)
     setPhase('playing')
@@ -111,9 +115,11 @@ export default function TimeAttackPage() {
       setAnswered((n) => n + 1)
       if (correct) {
         setScore((s) => s + 1)
+        setAnnounce(`Correct — ${question.entry.romaji}`)
         advance()
       } else {
         // Flash the right answer briefly, then keep moving.
+        setAnnounce(`Wrong — ${question.entry.kana} is ${question.entry.romaji}`)
         setWrongPick(choice.id)
         flashTimer.current = window.setTimeout(() => {
           flashTimer.current = null
@@ -261,6 +267,10 @@ export default function TimeAttackPage() {
           />
         </div>
 
+        <span aria-live="polite" className="sr-only">
+          {announce}
+        </span>
+
         <div className="relative">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
@@ -305,6 +315,7 @@ export default function TimeAttackPage() {
                 disabled={flashing}
                 className={`relative min-h-[56px] rounded-2xl border py-3.5 text-xl font-semibold tracking-wide transition-colors ${style}`}
               >
+                {flashing && isCorrect ? '✓ ' : flashing && choice.id === wrongPick ? '✕ ' : ''}
                 {choice.romaji}
                 <span
                   aria-hidden

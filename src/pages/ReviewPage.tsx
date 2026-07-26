@@ -132,6 +132,8 @@ export default function ReviewPage() {
   const [matured, setMatured] = useState<string[]>([])
   const [stampTick, setStampTick] = useState(0)
   const [stampVisible, setStampVisible] = useState(false)
+  /** Monotonic per-answer counter so re-queued cards always get a fresh key. */
+  const [round, setRound] = useState(0)
   const sessionSize = useRef(0)
 
   // Build the session once from the persisted snapshot.
@@ -184,6 +186,7 @@ export default function ReviewPage() {
       }
       setCounts((c) => ({ ...c, [rating]: c[rating] + 1 }))
       setRevealed(false)
+      setRound((r) => r + 1)
       setQueue((q) => {
         if (!q || q.length === 0) return q
         const rest = q.slice(1)
@@ -247,7 +250,7 @@ export default function ReviewPage() {
       <div className="relative [perspective:1200px]">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
-            key={`${current!.id}-${done}`}
+            key={`${current!.id}-${round}`}
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -24 }}
@@ -262,6 +265,8 @@ export default function ReviewPage() {
               <button
                 onClick={reveal}
                 aria-label={revealed ? undefined : 'Show answer'}
+                aria-hidden={revealed}
+                tabIndex={revealed ? -1 : 0}
                 className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-hairline bg-surface shadow-soft [backface-visibility:hidden]"
               >
                 {isNewCard && (
@@ -274,12 +279,17 @@ export default function ReviewPage() {
                   {entry.script}
                 </span>
               </button>
-              {/* back */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-hairline bg-surface shadow-soft [backface-visibility:hidden] [transform:rotateY(180deg)]">
+              {/* back — hidden from the a11y tree until revealed so screen
+                  readers can't read the answer ahead of the flip */}
+              <div
+                aria-hidden={!revealed}
+                className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-hairline bg-surface shadow-soft [backface-visibility:hidden] [transform:rotateY(180deg)]"
+              >
                 <span className="font-kana text-6xl sm:text-7xl">{entry.kana}</span>
                 <span className="mt-4 text-4xl font-semibold tracking-wide">{entry.romaji}</span>
                 <button
                   onClick={() => speak(entry.kana, useStore.getState().settings.audio)}
+                  tabIndex={revealed ? 0 : -1}
                   className="mt-5 flex items-center gap-1.5 rounded-full border border-hairline px-3.5 py-1.5 text-sm text-muted transition-colors hover:text-sumi"
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>

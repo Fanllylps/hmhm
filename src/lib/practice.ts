@@ -31,22 +31,28 @@ export function usePracticePool(min = 8): KanaEntry[] {
  * with distinct romaji, shuffled.
  */
 export function pickChoices(correct: KanaEntry, pool: KanaEntry[], count = 4): KanaEntry[] {
-  const seen = new Set([correct.romaji])
+  // Dedupe across primary AND alt spellings so sound-alikes never share a
+  // round (を "wo"/alt "o" vs お "o" would make Listening rounds unwinnable).
+  const spellings = (entry: KanaEntry) => [entry.romaji, ...entry.alt]
+  const seen = new Set(spellings(correct))
   const distractors: KanaEntry[] = []
+  const conflicts = (entry: KanaEntry) => spellings(entry).some((r) => seen.has(r))
+  const add = (entry: KanaEntry) => {
+    for (const r of spellings(entry)) seen.add(r)
+    distractors.push(entry)
+  }
   for (const entry of shuffle(pool)) {
     if (distractors.length >= count - 1) break
-    if (entry.id === correct.id || seen.has(entry.romaji)) continue
+    if (entry.id === correct.id || conflicts(entry)) continue
     if (entry.script !== correct.script) continue
-    seen.add(entry.romaji)
-    distractors.push(entry)
+    add(entry)
   }
   // Tiny pools (e.g. only yōon rows) may need cross-script fillers.
   if (distractors.length < count - 1) {
     for (const entry of shuffle(pool)) {
       if (distractors.length >= count - 1) break
-      if (entry.id === correct.id || seen.has(entry.romaji)) continue
-      seen.add(entry.romaji)
-      distractors.push(entry)
+      if (entry.id === correct.id || conflicts(entry)) continue
+      add(entry)
     }
   }
   return shuffle([correct, ...distractors])

@@ -22,7 +22,11 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <BrowserRouter>
-        {!onboarded && <Onboarding />}
+        {/* Nothing renders behind the onboarding overlay, so keyboard focus
+            cannot escape into an invisible app. */}
+        {!onboarded ? (
+          <Onboarding />
+        ) : (
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<DashboardPage />} />
@@ -41,6 +45,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        )}
       </BrowserRouter>
     </MotionConfig>
   )
