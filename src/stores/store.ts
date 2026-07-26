@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { KANA, type KanaEntry } from '../data/kana'
 import { KANJI } from '../data/kanji'
 import { computeStreak, dayKey, type DayActivity } from '../lib/dates'
+import { haptic } from '../lib/haptics'
 import {
   createCard,
   isDue,
@@ -30,6 +31,8 @@ export interface Settings {
   /** Lenient romaji input: accept shi/si, chi/ti, tsu/tu, fu/hu, ja/jya… */
   lenient: boolean
   theme: 'system' | 'light' | 'dark'
+  /** Vibrate on answers (Android; ignored where unsupported). */
+  haptics: boolean
 }
 
 export interface BestScores {
@@ -46,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   audio: true,
   lenient: true,
   theme: 'system',
+  haptics: true,
 }
 
 /** XP awards — kept here so every surface hands out the same amounts. */
@@ -143,6 +147,7 @@ export const useStore = create<AppState>()(
         const isIntroduction = card.phase === 'new'
         const updated = rate(card, rating, now)
         const key = dayKey(now)
+        haptic(rating === 'again' ? 'error' : 'success', s.settings.haptics)
         set({
           cards: { ...s.cards, [id]: updated },
           activity: bumpActivity(s.activity, rating !== 'again', now),
@@ -156,6 +161,7 @@ export const useStore = create<AppState>()(
 
       recordPractice: (id, correct) => {
         const now = Date.now()
+        haptic(correct ? 'success' : 'error', get().settings.haptics)
         set((s) => {
           const cards =
             !correct && id && s.cards[id]

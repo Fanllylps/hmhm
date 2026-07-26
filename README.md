@@ -12,6 +12,7 @@ An interactive web app for learning Japanese **Hiragana & Katakana**, built arou
 - **Settings** — script & group toggles, daily new-card limit, lenient romaji input (shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…), full JSON export/import of progress
 - **Design** — calm Japanese minimalism on washi cream, Zen Maru Gothic kana, Framer Motion micro-interactions, fully responsive & one-hand friendly on mobile, keyboard shortcuts on desktop (Space = flip, 1–4 = rate), respects `prefers-reduced-motion`
 - **Dark mode** — a warm "sumi night" variant of the cream theme; follows the system setting or toggle it manually in Settings
+- **Haptic feedback** — subtle vibrations on answers, flips and achievement unlocks (Android; toggleable in Settings)
 - **Installable PWA** — add it to your home screen and the whole app (including stroke data) works fully offline
 - **Level & XP** — reviews and games earn XP; level up through Japanese-flavored ranks (新人 → 仮名仙人) with a progress bar on the dashboard
 - **Stroke order** — tap any kana in the chart to watch its strokes drawn in order (data from [KanjiVG](https://kanjivg.tagaini.net) © Ulrich Apel, CC BY-SA 3.0)

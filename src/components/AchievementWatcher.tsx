@@ -6,6 +6,7 @@ import {
   buildAchievementContext,
   type AchievementDef,
 } from '../data/achievements'
+import { haptic } from '../lib/haptics'
 import { useStore } from '../stores/store'
 
 /**
@@ -32,6 +33,7 @@ export default function AchievementWatcher() {
     if (fresh.length > 0) {
       unlockAchievements(fresh.map((a) => a.id))
       setQueue((q) => [...q, ...fresh])
+      haptic('celebrate', useStore.getState().settings.haptics)
     }
   }, [cards, activity, best, xp, unlocked, unlockAchievements])
 

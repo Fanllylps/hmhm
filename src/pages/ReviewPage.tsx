@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader'
 import { STUDY_BY_ID } from '../data/study'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { haptic } from '../lib/haptics'
 import {
   buildQueue,
   createCard,
@@ -180,7 +181,9 @@ export default function ReviewPage() {
   const reveal = useCallback(() => {
     if (!current || !entry || revealed) return
     setRevealed(true)
-    speak(entry.kana, useStore.getState().settings.audio)
+    const { audio, haptics } = useStore.getState().settings
+    haptic('tap', haptics)
+    speak(entry.kana, audio)
   }, [current, entry, revealed])
 
   const answer = useCallback(

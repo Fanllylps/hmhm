@@ -4,6 +4,7 @@ import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import { speak } from '../lib/audio'
 import { dayKey } from '../lib/dates'
+import { haptic } from '../lib/haptics'
 import {
   buildExportPayload,
   parseImportPayload,
@@ -320,6 +321,16 @@ export default function SettingsPage() {
           description="Speak kana aloud with a Japanese voice."
           checked={settings.audio}
           onChange={setAudio}
+        />
+        <SwitchRow
+          label="Haptics"
+          description="Vibrate on answers and unlocks. Android — iPhones ignore this."
+          checked={settings.haptics}
+          onChange={(next) => {
+            updateSettings({ haptics: next })
+            // A sample buzz so turning it on confirms it works on this device.
+            if (next) haptic('success', true)
+          }}
         />
         <SwitchRow
           label="Lenient romaji"
