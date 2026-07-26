@@ -7,9 +7,84 @@ import PageHeader from '../components/PageHeader'
 import { WORDS, type WordEntry } from '../data/words'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { localizedMeaning, useLang } from '../lib/i18n'
 import { shuffle } from '../lib/practice'
 import { matchesRomaji, normalizeInput } from '../lib/romaji'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  title: 'Words',
+  idleSubtitle: 'Read whole words, type the rōmaji',
+  playingSubtitle: 'Type the rōmaji for the whole word',
+  intro:
+    'Real Japanese words, built from the kana you know. Type the rōmaji and press Enter — the meaning is revealed after every answer.',
+  poolSize: (n: number, label: string) => `${n} words · ${label}`,
+  start: 'Start reading',
+  orEnter: 'or press Enter',
+  emptyTitle: 'No words available',
+  emptyBody: 'No words match your current script setting.',
+  adjustSettings: 'Adjust settings →',
+  sessionComplete: 'Session complete',
+  summary: (n: number, acc: string) => `${n} word${n === 1 ? '' : 's'} read · ${acc} correct`,
+  answered: 'Answered',
+  score: 'Score',
+  bestStreak: 'Best streak',
+  accuracy: 'Accuracy',
+  playAgain: 'Play again',
+  backToPractice: 'Back to practice',
+  enterToPlayAgain: 'Enter to play again',
+  streak: 'Streak',
+  scoreLower: 'score',
+  accuracyLower: 'accuracy',
+  correct: 'Correct',
+  correctReading: 'Correct reading',
+  youTyped: 'you typed',
+  playAudio: 'Play audio',
+  placeholder: 'rōmaji',
+  inputAria: 'Type the rōmaji for the word shown',
+  nextWord: 'Next word',
+  check: 'Check',
+  thisRound: (pos: number, total: number) => `${pos} / ${total} this round`,
+  endSession: 'End session',
+}
+
+const ID: typeof EN = {
+  title: 'Words',
+  idleSubtitle: 'Baca kata utuh, ketik rōmaji-nya',
+  playingSubtitle: 'Ketik rōmaji untuk seluruh kata',
+  intro:
+    'Kata-kata Jepang asli, dibentuk dari kana yang sudah kamu kenal. Ketik rōmaji-nya lalu tekan Enter — artinya muncul setiap selesai menjawab.',
+  poolSize: (n: number, label: string) => `${n} kata · ${label}`,
+  start: 'Mulai membaca',
+  orEnter: 'atau tekan Enter',
+  emptyTitle: 'Tidak ada kata tersedia',
+  emptyBody: 'Tidak ada kata yang cocok dengan setelan aksara kamu.',
+  adjustSettings: 'Ubah setelan →',
+  sessionComplete: 'Sesi selesai',
+  summary: (n: number, acc: string) => `${n} kata dibaca · ${acc} benar`,
+  answered: 'Dijawab',
+  score: 'Skor',
+  bestStreak: 'Streak terbaik',
+  accuracy: 'Akurasi',
+  playAgain: 'Main lagi',
+  backToPractice: 'Kembali ke latihan',
+  enterToPlayAgain: 'Enter untuk main lagi',
+  streak: 'Streak',
+  scoreLower: 'skor',
+  accuracyLower: 'akurasi',
+  correct: 'Benar',
+  correctReading: 'Bacaan yang benar',
+  youTyped: 'kamu mengetik',
+  playAudio: 'Putar audio',
+  placeholder: 'rōmaji',
+  inputAria: 'Ketik rōmaji untuk kata yang ditampilkan',
+  nextWord: 'Kata berikutnya',
+  check: 'Periksa',
+  thisRound: (pos: number, total: number) => `${pos} / ${total} putaran ini`,
+  endSession: 'Akhiri sesi',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 /** Streaks at or above this count burn vermilion. */
 const HOT_STREAK = 5
@@ -31,6 +106,7 @@ function scriptLabel(scripts: 'hiragana' | 'katakana' | 'both'): string {
 }
 
 function AudioButton({ kana }: { kana: string }) {
+  const t = STR[useLang()]
   return (
     <button
       type="button"
@@ -46,7 +122,7 @@ function AudioButton({ kana }: { kana: string }) {
           strokeLinecap="round"
         />
       </svg>
-      Play audio
+      {t.playAudio}
     </button>
   )
 }
@@ -60,11 +136,12 @@ function StatsRow({
   score: number
   accuracy: string
 }) {
+  const t = STR[useLang()]
   const hot = streak >= HOT_STREAK
   return (
     <div className="mb-4 flex items-end justify-between">
       <div className="flex items-baseline gap-2">
-        <span className="text-xs font-medium uppercase tracking-widest text-muted">Streak</span>
+        <span className="text-xs font-medium uppercase tracking-widest text-muted">{t.streak}</span>
         <motion.span
           key={streak}
           initial={{ scale: streak > 0 ? 1.35 : 1 }}
@@ -92,11 +169,11 @@ function StatsRow({
       </div>
       <div className="flex items-center gap-4 text-sm text-muted">
         <span>
-          <span className="font-semibold tabular-nums text-sumi">{score}</span> score
+          <span className="font-semibold tabular-nums text-sumi">{score}</span> {t.scoreLower}
         </span>
         <span aria-hidden className="h-3 w-px bg-hairline" />
         <span>
-          <span className="font-semibold tabular-nums text-sumi">{accuracy}</span> accuracy
+          <span className="font-semibold tabular-nums text-sumi">{accuracy}</span> {t.accuracyLower}
         </span>
       </div>
     </div>
@@ -106,6 +183,8 @@ function StatsRow({
 export default function WordModePage() {
   const scripts = useStore((s) => s.settings.scripts)
   const recordPractice = useStore((s) => s.recordPractice)
+  const lang = useLang()
+  const t = STR[lang]
 
   const wordPool = useMemo(
     () => (scripts === 'both' ? WORDS : WORDS.filter((w) => w.script === scripts)),
@@ -227,12 +306,12 @@ export default function WordModePage() {
   if (wordPool.length === 0) {
     return (
       <div className="mx-auto max-w-xl">
-        <PageHeader title="Words" jp="ことば" backTo="/practice" />
-        <EmptyState kana="語" title="No words available">
-          No words match your current script setting.
+        <PageHeader title={t.title} jp="ことば" backTo="/practice" />
+        <EmptyState kana="語" title={t.emptyTitle}>
+          {t.emptyBody}
           <div className="mt-4">
             <Link to="/settings" className="font-medium text-vermilion">
-              Adjust settings →
+              {t.adjustSettings}
             </Link>
           </div>
         </EmptyState>
@@ -246,9 +325,9 @@ export default function WordModePage() {
     return (
       <div className="mx-auto max-w-xl">
         <PageHeader
-          title="Words"
+          title={t.title}
           jp="ことば"
-          subtitle="Read whole words, type the rōmaji"
+          subtitle={t.idleSubtitle}
           backTo="/practice"
         />
         <motion.div
@@ -263,24 +342,25 @@ export default function WordModePage() {
               <span className="block text-3xl font-semibold tracking-wide text-muted">
                 {example.romaji}
               </span>
-              <span className="block text-sm text-muted">{example.meaning}</span>
+              <span className="block text-sm text-muted">
+                {localizedMeaning(example.id, example.meaning, lang)}
+              </span>
             </span>
           </div>
           <p className="mx-auto mt-6 max-w-sm text-sm text-muted">
-            Real Japanese words, built from the kana you know. Type the rōmaji
-            and press Enter — the meaning is revealed after every answer.
+            {t.intro}
           </p>
           <p className="mt-3 text-xs text-muted">
-            {wordPool.length} words · {scriptLabel(scripts)}
+            {t.poolSize(wordPool.length, scriptLabel(scripts))}
           </p>
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={start}
             className="mt-8 w-full rounded-2xl bg-vermilion px-8 py-4 font-medium text-surface sm:w-auto"
           >
-            Start reading
+            {t.start}
           </motion.button>
-          <p className="mt-3 hidden text-xs text-muted sm:block">or press Enter</p>
+          <p className="mt-3 hidden text-xs text-muted sm:block">{t.orEnter}</p>
         </motion.div>
       </div>
     )
@@ -290,7 +370,7 @@ export default function WordModePage() {
   if (phase === 'done') {
     return (
       <div className="mx-auto max-w-md">
-        <PageHeader title="Words" jp="ことば" backTo="/practice" />
+        <PageHeader title={t.title} jp="ことば" backTo="/practice" />
         <Confetti />
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
@@ -300,18 +380,18 @@ export default function WordModePage() {
           <span aria-hidden className="font-kana text-5xl">
             語
           </span>
-          <h2 className="mt-4 text-2xl font-semibold">Session complete</h2>
+          <h2 className="mt-4 text-2xl font-semibold">{t.sessionComplete}</h2>
           <p className="mt-1 text-sm text-muted">
-            {answered} word{answered === 1 ? '' : 's'} read · {accuracyLabel} correct
+            {t.summary(answered, accuracyLabel)}
           </p>
           <div className="mt-6 grid grid-cols-2 gap-2 text-center text-sm">
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold tabular-nums">{answered}</div>
-              <div className="mt-0.5 text-xs text-muted">Answered</div>
+              <div className="mt-0.5 text-xs text-muted">{t.answered}</div>
             </div>
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold tabular-nums text-matcha">{correctCount}</div>
-              <div className="mt-0.5 text-xs text-muted">Score</div>
+              <div className="mt-0.5 text-xs text-muted">{t.score}</div>
             </div>
             <div className="rounded-xl bg-washi px-2 py-3">
               <div
@@ -321,11 +401,11 @@ export default function WordModePage() {
               >
                 ×{bestStreak}
               </div>
-              <div className="mt-0.5 text-xs text-muted">Best streak</div>
+              <div className="mt-0.5 text-xs text-muted">{t.bestStreak}</div>
             </div>
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold tabular-nums">{accuracyLabel}</div>
-              <div className="mt-0.5 text-xs text-muted">Accuracy</div>
+              <div className="mt-0.5 text-xs text-muted">{t.accuracy}</div>
             </div>
           </div>
           <div className="mt-8 flex flex-col gap-2">
@@ -334,16 +414,16 @@ export default function WordModePage() {
               onClick={start}
               className="rounded-2xl bg-vermilion px-6 py-3 font-medium text-surface"
             >
-              Play again
+              {t.playAgain}
             </motion.button>
             <Link
               to="/practice"
               className="rounded-2xl border border-hairline px-6 py-3 font-medium text-muted transition-colors hover:text-sumi"
             >
-              Back to practice
+              {t.backToPractice}
             </Link>
           </div>
-          <p className="mt-4 hidden text-xs text-muted sm:block">Enter to play again</p>
+          <p className="mt-4 hidden text-xs text-muted sm:block">{t.enterToPlayAgain}</p>
         </motion.div>
       </div>
     )
@@ -357,9 +437,9 @@ export default function WordModePage() {
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader
-        title="Words"
+        title={t.title}
         jp="ことば"
-        subtitle="Type the rōmaji for the whole word"
+        subtitle={t.playingSubtitle}
         backTo="/practice"
       />
 
@@ -407,7 +487,7 @@ export default function WordModePage() {
                   feedback === 'correct' ? 'text-matcha' : 'text-vermilion'
                 }`}
               >
-                {feedback === 'correct' ? 'Correct' : 'Correct reading'}
+                {feedback === 'correct' ? t.correct : t.correctReading}
               </span>
               <span
                 className={`mt-1 text-3xl font-semibold tracking-wide ${
@@ -416,10 +496,12 @@ export default function WordModePage() {
               >
                 {current.romaji}
               </span>
-              <span className="mt-1 text-base text-muted">“{current.meaning}”</span>
+              <span className="mt-1 text-base text-muted">
+                “{localizedMeaning(current.id, current.meaning, lang)}”
+              </span>
               {feedback === 'wrong' && normalizeInput(typed).length > 0 && (
                 <span className="mt-2 text-sm text-muted">
-                  you typed <span className="line-through">{normalizeInput(typed)}</span>
+                  {t.youTyped} <span className="line-through">{normalizeInput(typed)}</span>
                 </span>
               )}
               <AudioButton kana={current.kana} />
@@ -459,8 +541,8 @@ export default function WordModePage() {
           spellCheck={false}
           enterKeyHint="go"
           readOnly={revealed}
-          placeholder="rōmaji"
-          aria-label="Type the rōmaji for the word shown"
+          placeholder={t.placeholder}
+          aria-label={t.inputAria}
           className={`w-full rounded-2xl border bg-surface px-4 py-4 text-center text-xl font-medium tracking-wide shadow-soft transition-colors placeholder:text-muted/50 ${
             feedback === 'wrong'
               ? 'border-vermilion/70 text-vermilion'
@@ -478,22 +560,21 @@ export default function WordModePage() {
               : 'border border-hairline bg-surface text-sumi hover:bg-washi'
           }`}
         >
-          {revealed ? 'Next word' : 'Check'}
+          {revealed ? t.nextWord : t.check}
           <span className="ml-2 hidden text-xs opacity-60 sm:inline">Enter</span>
         </motion.button>
       </form>
 
       <div className="mt-6 flex items-center justify-center gap-4 text-sm text-muted">
         <span className="tabular-nums">
-          {Math.min(posRef.current + 1, deckRef.current.length)} / {deckRef.current.length} this
-          round
+          {t.thisRound(Math.min(posRef.current + 1, deckRef.current.length), deckRef.current.length)}
         </span>
         <span aria-hidden className="h-3 w-px bg-hairline" />
         <button
           onClick={endSession}
           className="rounded-full px-4 py-3 font-medium transition-colors hover:text-sumi"
         >
-          End session
+          {t.endSession}
         </button>
       </div>
     </div>

@@ -21,6 +21,14 @@ import WritingPage from './pages/WritingPage'
 import AchievementsPage from './pages/AchievementsPage'
 import AchievementWatcher from './components/AchievementWatcher'
 
+/** Keep the document language in sync for screen readers and hyphenation. */
+function useHtmlLang() {
+  const lang = useStore((s) => s.settings.language)
+  useEffect(() => {
+    document.documentElement.lang = lang
+  }, [lang])
+}
+
 /** Apply the theme: toggle .dark on <html> and keep the browser UI tinted. */
 function useTheme() {
   const theme = useStore((s) => s.settings.theme)
@@ -42,6 +50,7 @@ function useTheme() {
 export default function App() {
   const onboarded = useStore((s) => s.onboarded)
   useTheme()
+  useHtmlLang()
   return (
     <MotionConfig reducedMotion="user">
       <BrowserRouter>

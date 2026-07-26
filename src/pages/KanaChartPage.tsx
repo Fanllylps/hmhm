@@ -14,6 +14,7 @@ import {
 } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import {
   DAY_MS,
   formatDuration,
@@ -22,55 +23,91 @@ import {
   type Rating,
   type SrsCard,
 } from '../lib/srs'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+type ChartGroup = Exclude<KanaGroup, 'kanji'>
+
+const EN = {
+  subtitle: 'Tap any kana to see its details',
+  started: 'started',
+  matureCount: 'mature',
+  groups: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yōon' },
+  sectionAria: (name: string) => `${name} kana`,
+  maturity: { new: 'New', learning: 'Learning', young: 'Young', mature: 'Mature' },
+  ratings: { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' },
+  phases: { new: 'new', learning: 'learning', review: 'review', relearning: 'relearning' },
+  playAudio: 'Play audio',
+  strokeOrder: 'Stroke order',
+  ease: 'Ease',
+  interval: 'Interval',
+  reps: 'Reps',
+  lapses: 'Lapses',
+  nextReview: 'Next review',
+  dueNow: 'due now',
+  inDuration: (d: string) => `in ${d}`,
+  recentAnswers: 'Recent answers',
+  today: 'today',
+  yesterday: 'yesterday',
+  daysAgo: (n: number) => `${n}d ago`,
+  notStudied: 'Not studied yet — it will appear as a new card in your review sessions.',
+  kanji: 'Kanji',
+}
+
+const ID: typeof EN = {
+  subtitle: 'Ketuk kana untuk lihat detailnya',
+  started: 'dimulai',
+  matureCount: 'matang',
+  groups: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yōon' },
+  sectionAria: (name: string) => `Kana ${name}`,
+  maturity: { new: 'Baru', learning: 'Belajar', young: 'Muda', mature: 'Matang' },
+  ratings: { again: 'Ulangi', hard: 'Sulit', good: 'Bagus', easy: 'Mudah' },
+  phases: { new: 'baru', learning: 'belajar', review: 'review', relearning: 'belajar ulang' },
+  playAudio: 'Putar audio',
+  strokeOrder: 'Urutan goresan',
+  ease: 'Ease',
+  interval: 'Interval',
+  reps: 'Ulangan',
+  lapses: 'Lupa',
+  nextReview: 'Review berikutnya',
+  dueNow: 'jatuh tempo',
+  inDuration: (d: string) => `dalam ${d}`,
+  recentAnswers: 'Jawaban terakhir',
+  today: 'hari ini',
+  yesterday: 'kemarin',
+  daysAgo: (n: number) => `${n}h lalu`,
+  notStudied: 'Belum dipelajari — akan muncul sebagai kartu baru di sesi review-mu.',
+  kanji: 'Kanji',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 const MATURITIES: Maturity[] = ['new', 'learning', 'young', 'mature']
 
-const MATURITY_META: Record<Maturity, { label: string; cell: string; chip: string }> = {
+const MATURITY_META: Record<Maturity, { cell: string; chip: string }> = {
   new: {
-    label: 'New',
     cell: 'border-hairline bg-surface text-muted',
     chip: 'bg-washi text-muted',
   },
   learning: {
-    label: 'Learning',
     cell: 'border-vermilion/30 bg-vermilion/10',
     chip: 'bg-vermilion/10 text-vermilion',
   },
   young: {
-    label: 'Young',
     cell: 'border-matcha/30 bg-matcha/15',
     chip: 'bg-matcha/15 text-matcha',
   },
   mature: {
-    label: 'Mature',
     cell: 'border-matcha/50 bg-matcha/25',
     chip: 'bg-matcha/25 text-matcha',
   },
 }
 
-type ChartGroup = Exclude<KanaGroup, 'kanji'>
-
-const GROUPS: { key: ChartGroup; en: string; jp: string; cols: string; aspect: string }[] = [
-  { key: 'basic', en: 'Basic', jp: '清音', cols: 'grid-cols-5', aspect: 'aspect-square' },
-  { key: 'dakuten', en: 'Dakuten', jp: '濁音', cols: 'grid-cols-5', aspect: 'aspect-square' },
-  { key: 'handakuten', en: 'Handakuten', jp: '半濁音', cols: 'grid-cols-5', aspect: 'aspect-square' },
-  { key: 'yoon', en: 'Yōon', jp: '拗音', cols: 'grid-cols-3', aspect: 'aspect-[2/1]' },
+const GROUPS: { key: ChartGroup; jp: string; cols: string; aspect: string }[] = [
+  { key: 'basic', jp: '清音', cols: 'grid-cols-5', aspect: 'aspect-square' },
+  { key: 'dakuten', jp: '濁音', cols: 'grid-cols-5', aspect: 'aspect-square' },
+  { key: 'handakuten', jp: '半濁音', cols: 'grid-cols-5', aspect: 'aspect-square' },
+  { key: 'yoon', jp: '拗音', cols: 'grid-cols-3', aspect: 'aspect-[2/1]' },
 ]
-
-const GROUP_LABEL: Record<ChartGroup, string> = {
-  basic: 'Basic',
-  dakuten: 'Dakuten',
-  handakuten: 'Handakuten',
-  yoon: 'Yōon',
-}
-
-const RATING_LABELS: Record<Rating, string> = {
-  again: 'Again',
-  hard: 'Hard',
-  good: 'Good',
-  easy: 'Easy',
-}
 
 const RATING_CHIPS: Record<Rating, string> = {
   again: 'bg-vermilion/10 text-vermilion',
@@ -80,15 +117,15 @@ const RATING_CHIPS: Record<Rating, string> = {
 }
 
 /** "today", "yesterday", "3d ago" — calendar-day based, local time. */
-function relativeDay(ts: number, now: number): string {
+function relativeDay(ts: number, now: number, t: typeof EN): string {
   const a = new Date(ts)
   a.setHours(0, 0, 0, 0)
   const b = new Date(now)
   b.setHours(0, 0, 0, 0)
   const days = Math.round((b.getTime() - a.getTime()) / DAY_MS)
-  if (days <= 0) return 'today'
-  if (days === 1) return 'yesterday'
-  return `${days}d ago`
+  if (days <= 0) return t.today
+  if (days === 1) return t.yesterday
+  return t.daysAgo(days)
 }
 
 function ScriptToggle({ script, onChange }: { script: Script; onChange: (s: Script) => void }) {
@@ -123,6 +160,7 @@ function ScriptToggle({ script, onChange }: { script: Script; onChange: (s: Scri
 }
 
 function ProgressSummary({ counts, total }: { counts: Record<Maturity, number>; total: number }) {
+  const t = STR[useLang()]
   const started = total - counts.new
   const pct = (n: number) => `${total === 0 ? 0 : (n / total) * 100}%`
   return (
@@ -130,10 +168,12 @@ function ProgressSummary({ counts, total }: { counts: Record<Maturity, number>; 
       <div className="flex items-baseline justify-between gap-4 text-sm">
         <p>
           <span className="font-semibold">{started}</span>
-          <span className="text-muted">/{total} started</span>
+          <span className="text-muted">
+            /{total} {t.started}
+          </span>
         </p>
         <p className="text-muted">
-          <span className="font-semibold text-sumi">{counts.mature}</span> mature
+          <span className="font-semibold text-sumi">{counts.mature}</span> {t.matureCount}
         </p>
       </div>
       <div aria-hidden className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-hairline">
@@ -157,7 +197,7 @@ function ProgressSummary({ counts, total }: { counts: Record<Maturity, number>; 
         {MATURITIES.map((m) => (
           <span key={m} className="flex items-center gap-1.5 text-xs text-muted">
             <span aria-hidden className={`h-3 w-3 rounded border ${MATURITY_META[m].cell}`} />
-            {MATURITY_META[m].label}
+            {t.maturity[m]}
           </span>
         ))}
       </div>
@@ -176,12 +216,13 @@ function KanaCell({
   aspect: string
   onOpen: (id: string) => void
 }) {
+  const t = STR[useLang()]
   const maturity = maturityOf(card)
   return (
     <motion.button
       whileTap={{ scale: 0.94 }}
       onClick={() => onOpen(entry.id)}
-      aria-label={`${entry.kana}, ${entry.romaji}, ${MATURITY_META[maturity].label.toLowerCase()}`}
+      aria-label={`${entry.kana}, ${entry.romaji}, ${t.maturity[maturity].toLowerCase()}`}
       className={`relative flex min-h-[44px] flex-col items-center justify-center rounded-xl border transition-colors ${aspect} ${MATURITY_META[maturity].cell}`}
     >
       <span
@@ -202,6 +243,7 @@ function KanaCell({
 }
 
 function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefined }) {
+  const t = STR[useLang()]
   const maturity = maturityOf(card)
   const studied = card !== undefined && card.phase !== 'new'
   const now = Date.now()
@@ -216,7 +258,7 @@ function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefin
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${MATURITY_META[maturity].chip}`}
           >
-            {MATURITY_META[maturity].label}
+            {t.maturity[maturity]}
           </span>
           <button
             onClick={() => speak(entry.kana, useStore.getState().settings.audio)}
@@ -231,14 +273,14 @@ function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefin
                 strokeLinecap="round"
               />
             </svg>
-            Play audio
+            {t.playAudio}
           </button>
         </div>
       </div>
 
       <div className="mt-6">
         <h3 className="text-center text-xs font-semibold uppercase tracking-widest text-muted">
-          Stroke order
+          {t.strokeOrder}
         </h3>
         <div className="mt-3 flex items-start justify-center gap-4">
           {[...entry.kana].map((glyph) => (
@@ -264,35 +306,37 @@ function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefin
           <div className="mt-6 grid grid-cols-4 gap-2 text-center">
             <div className="rounded-xl bg-washi px-1 py-3">
               <div className="text-sm font-semibold">{card.ease.toFixed(2)}</div>
-              <div className="mt-0.5 text-xs text-muted">Ease</div>
+              <div className="mt-0.5 text-xs text-muted">{t.ease}</div>
             </div>
             <div className="rounded-xl bg-washi px-1 py-3">
               <div className="text-sm font-semibold">
                 {card.interval > 0 ? formatDuration(card.interval * DAY_MS) : '—'}
               </div>
-              <div className="mt-0.5 text-xs text-muted">Interval</div>
+              <div className="mt-0.5 text-xs text-muted">{t.interval}</div>
             </div>
             <div className="rounded-xl bg-washi px-1 py-3">
               <div className="text-sm font-semibold">{card.reps}</div>
-              <div className="mt-0.5 text-xs text-muted">Reps</div>
+              <div className="mt-0.5 text-xs text-muted">{t.reps}</div>
             </div>
             <div className="rounded-xl bg-washi px-1 py-3">
               <div className="text-sm font-semibold">{card.lapses}</div>
-              <div className="mt-0.5 text-xs text-muted">Lapses</div>
+              <div className="mt-0.5 text-xs text-muted">{t.lapses}</div>
             </div>
           </div>
 
           <p className="mt-4 text-center text-sm text-muted">
-            Next review{' '}
+            {t.nextReview}{' '}
             <span className="font-medium text-sumi">
-              {card.nextReview <= now ? 'due now' : `in ${formatDuration(card.nextReview - now)}`}
+              {card.nextReview <= now
+                ? t.dueNow
+                : t.inDuration(formatDuration(card.nextReview - now))}
             </span>
           </p>
 
           {history.length > 0 && (
             <div className="mt-6">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-muted">
-                Recent answers
+                {t.recentAnswers}
               </h3>
               <ul className="mt-2 divide-y divide-hairline">
                 {history.map((h, i) => (
@@ -300,10 +344,12 @@ function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefin
                     <span
                       className={`w-14 rounded-full px-2 py-0.5 text-center text-xs font-medium ${RATING_CHIPS[h.rating]}`}
                     >
-                      {RATING_LABELS[h.rating]}
+                      {t.ratings[h.rating]}
                     </span>
-                    <span className="flex-1 text-xs capitalize text-muted">{h.phase}</span>
-                    <span className="text-xs text-muted">{relativeDay(h.ts, now)}</span>
+                    <span className="flex-1 text-xs capitalize text-muted">
+                      {t.phases[h.phase]}
+                    </span>
+                    <span className="text-xs text-muted">{relativeDay(h.ts, now, t)}</span>
                   </li>
                 ))}
               </ul>
@@ -312,7 +358,7 @@ function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefin
         </>
       ) : (
         <div className="mt-6 rounded-xl bg-washi p-4 text-center text-sm text-muted">
-          Not studied yet — it will appear as a new card in your review sessions.
+          {t.notStudied}
         </div>
       )}
     </div>
@@ -321,6 +367,7 @@ function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefin
 
 export default function KanaChartPage() {
   const cards = useStore((s) => s.cards)
+  const t = STR[useLang()]
   const [script, setScript] = useState<Script>(() =>
     useStore.getState().settings.scripts === 'katakana' ? 'katakana' : 'hiragana',
   )
@@ -379,12 +426,7 @@ export default function KanaChartPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader
-        title="Kana Chart"
-        jp="五十音"
-        subtitle="Tap any kana to see its details"
-        backTo="/"
-      />
+      <PageHeader title="Kana Chart" jp="五十音" subtitle={t.subtitle} backTo="/" />
 
       <ScriptToggle script={script} onChange={setScript} />
 
@@ -400,9 +442,9 @@ export default function KanaChartPage() {
         className="mt-8 space-y-8 pb-4"
       >
         {sections.map((sec) => (
-          <section key={sec.key} aria-label={`${sec.en} kana`}>
+          <section key={sec.key} aria-label={t.sectionAria(t.groups[sec.key])}>
             <div className="mb-3 flex items-center gap-3">
-              <h2 className="text-base font-semibold">{sec.en}</h2>
+              <h2 className="text-base font-semibold">{t.groups[sec.key]}</h2>
               <span aria-hidden className="font-kana text-sm text-muted">
                 {sec.jp}
               </span>
@@ -435,7 +477,7 @@ export default function KanaChartPage() {
         title={
           selected
             ? `${selected.script === 'hiragana' ? 'Hiragana' : 'Katakana'} · ${
-                GROUP_LABEL[selected.group as ChartGroup] ?? 'Kanji'
+                t.groups[selected.group as ChartGroup] ?? t.kanji
               }`
             : undefined
         }

@@ -16,6 +16,16 @@ import {
 
 export const SCHEMA_VERSION = 1
 
+export type Lang = 'en' | 'id'
+
+/** First-run default: follow the device language (Indonesian or English). */
+function detectLang(): Lang {
+  if (typeof navigator !== 'undefined' && (navigator.language ?? '').toLowerCase().startsWith('id')) {
+    return 'id'
+  }
+  return 'en'
+}
+
 export interface Settings {
   scripts: 'hiragana' | 'katakana' | 'both'
   groups: {
@@ -33,6 +43,8 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'
   /** Vibrate on answers (Android; ignored where unsupported). */
   haptics: boolean
+  /** UI language. */
+  language: Lang
 }
 
 export interface BestScores {
@@ -50,6 +62,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lenient: true,
   theme: 'system',
   haptics: true,
+  language: detectLang(),
 }
 
 /** XP awards — kept here so every surface hands out the same amounts. */

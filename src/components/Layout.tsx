@@ -1,13 +1,14 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useLang, type Localized } from '../lib/i18n'
 
-const NAV = [
-  { to: '/', label: 'Home', jp: '家' },
-  { to: '/review', label: 'Review', jp: '復' },
-  { to: '/practice', label: 'Practice', jp: '遊' },
-  { to: '/chart', label: 'Chart', jp: '表' },
-  { to: '/settings', label: 'Settings', jp: '設' },
+const NAV: { to: string; jp: string; label: Localized }[] = [
+  { to: '/', jp: '家', label: { en: 'Home', id: 'Beranda' } },
+  { to: '/review', jp: '復', label: { en: 'Review', id: 'Review' } },
+  { to: '/practice', jp: '遊', label: { en: 'Practice', id: 'Latihan' } },
+  { to: '/chart', jp: '表', label: { en: 'Chart', id: 'Bagan' } },
+  { to: '/settings', jp: '設', label: { en: 'Settings', id: 'Setelan' } },
 ]
 
 function NavItem({ to, label, jp }: { to: string; label: string; jp: string }) {
@@ -72,6 +73,7 @@ function DockTab({ to, label, jp }: { to: string; label: string; jp: string }) {
 
 export default function Layout() {
   const location = useLocation()
+  const lang = useLang()
 
   // Every tab starts at the top — otherwise a deep scroll on a long page (the
   // kana chart) carries over and drops you into the middle of the next one.
@@ -91,7 +93,7 @@ export default function Layout() {
           </NavLink>
           <nav className="flex items-center gap-1" aria-label="Main">
             {NAV.map((n) => (
-              <NavItem key={n.to} {...n} />
+              <NavItem key={n.to} to={n.to} jp={n.jp} label={n.label[lang]} />
             ))}
           </nav>
         </div>
@@ -120,7 +122,7 @@ export default function Layout() {
       >
         <div className="pointer-events-auto mx-auto flex w-fit max-w-full items-center gap-0.5 rounded-full border border-hairline bg-surface/95 p-1.5 shadow-lift backdrop-blur">
           {NAV.map((n) => (
-            <DockTab key={n.to} {...n} />
+            <DockTab key={n.to} to={n.to} jp={n.jp} label={n.label[lang]} />
           ))}
         </div>
       </nav>

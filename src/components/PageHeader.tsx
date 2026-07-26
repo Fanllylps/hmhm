@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { useLang } from '../lib/i18n'
 
 export default function PageHeader({
   title,
@@ -15,6 +16,7 @@ export default function PageHeader({
   backTo?: string
   actions?: ReactNode
 }) {
+  const lang = useLang()
   return (
     <div className="mb-6 flex items-end justify-between gap-4 sm:mb-8">
       <div>
@@ -23,7 +25,7 @@ export default function PageHeader({
             to={backTo}
             className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-sumi"
           >
-            <span aria-hidden>←</span> Back
+            <span aria-hidden>←</span> {lang === 'id' ? 'Kembali' : 'Back'}
           </Link>
         )}
         <h1 className="flex items-baseline gap-2.5 text-2xl font-semibold tracking-tight sm:text-3xl">

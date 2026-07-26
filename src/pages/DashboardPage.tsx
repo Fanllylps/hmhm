@@ -5,22 +5,94 @@ import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
 import Heatmap from '../components/dashboard/Heatmap'
 import ReviewsChart from '../components/dashboard/ReviewsChart'
+import { dateLocale, useLang, type Lang } from '../lib/i18n'
 import { levelFromXp } from '../lib/level'
 import { formatDuration } from '../lib/srs'
 import { computeStats, useStore } from '../stores/store'
 
-const PRACTICE_MODES = [
-  { to: '/practice/quiz', label: 'Quiz', jp: '選' },
-  { to: '/practice/typing', label: 'Typing', jp: '打' },
-  { to: '/practice/matching', label: 'Matching', jp: '対' },
-  { to: '/practice/kana-rain', label: 'Kana Rain', jp: '雨' },
-]
+const EN = {
+  greetings: {
+    midnight: 'Burning the midnight oil',
+    morning: 'Good morning',
+    afternoon: 'Good afternoon',
+    evening: 'Good evening',
+  },
+  timeToReview: 'Time to review',
+  dueCount: (n: number) => `${n} due`,
+  newCount: (n: number) => `${n} new`,
+  waitingForYou: (breakdown: string) => `${breakdown} waiting for you`,
+  startReview: 'Start review',
+  allCaughtUp: 'All caught up',
+  nextReviewIn: (duration: string) => `Next review in ${duration}.`,
+  nothingScheduled: 'Nothing scheduled yet — new cards arrive tomorrow.',
+  playPractice: 'Play a practice game →',
+  dueToday: 'Due today',
+  newToday: 'New today',
+  dayStreak: 'Day streak',
+  mastered: 'Mastered',
+  masteredAccuracy: (pct: number) => `Mastered · ${pct}% correct`,
+  earnXp: 'Reviews and games earn XP · ',
+  xpTotal: (total: string) => `${total} XP total`,
+  achievements: 'Achievements →',
+  activity: 'Activity',
+  last16Weeks: 'last 16 weeks',
+  reviewsPerDay: 'Reviews per day',
+  last14Days: 'last 14 days',
+  jumpIntoPractice: 'Jump into practice',
+  allModes: 'All modes →',
+  modes: {
+    quiz: 'Quiz',
+    typing: 'Typing',
+    matching: 'Matching',
+    kanaRain: 'Kana Rain',
+  },
+}
 
-function greeting(hour: number): { en: string; jp: string } {
-  if (hour < 5) return { en: 'Burning the midnight oil', jp: 'こんばんは' }
-  if (hour < 12) return { en: 'Good morning', jp: 'おはよう' }
-  if (hour < 18) return { en: 'Good afternoon', jp: 'こんにちは' }
-  return { en: 'Good evening', jp: 'こんばんは' }
+const ID: typeof EN = {
+  greetings: {
+    midnight: 'Masih begadang, nih',
+    morning: 'Selamat pagi',
+    afternoon: 'Selamat siang',
+    evening: 'Selamat malam',
+  },
+  timeToReview: 'Waktunya review',
+  dueCount: (n: number) => `${n} perlu direview`,
+  newCount: (n: number) => `${n} baru`,
+  waitingForYou: (breakdown: string) => `${breakdown} menunggumu`,
+  startReview: 'Mulai review',
+  allCaughtUp: 'Semua sudah selesai',
+  nextReviewIn: (duration: string) => `Review berikutnya dalam ${duration}.`,
+  nothingScheduled: 'Belum ada jadwal — kartu baru datang besok.',
+  playPractice: 'Main game latihan →',
+  dueToday: 'Perlu review hari ini',
+  newToday: 'Baru hari ini',
+  dayStreak: 'Runtutan hari',
+  mastered: 'Dikuasai',
+  masteredAccuracy: (pct: number) => `Dikuasai · ${pct}% benar`,
+  earnXp: 'Review dan game memberi XP · ',
+  xpTotal: (total: string) => `total ${total} XP`,
+  achievements: 'Pencapaian →',
+  activity: 'Aktivitas',
+  last16Weeks: '16 minggu terakhir',
+  reviewsPerDay: 'Review per hari',
+  last14Days: '14 hari terakhir',
+  jumpIntoPractice: 'Langsung ke latihan',
+  allModes: 'Semua mode →',
+  modes: {
+    quiz: 'Kuis',
+    typing: 'Mengetik',
+    matching: 'Mencocokkan',
+    kanaRain: 'Kana Rain',
+  },
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
+
+function greetingKey(hour: number): { key: keyof typeof EN.greetings; jp: string } {
+  if (hour < 5) return { key: 'midnight', jp: 'こんばんは' }
+  if (hour < 12) return { key: 'morning', jp: 'おはよう' }
+  if (hour < 18) return { key: 'afternoon', jp: 'こんにちは' }
+  return { key: 'evening', jp: 'こんばんは' }
 }
 
 function StatTile({ label, children }: { label: string; children: ReactNode }) {
@@ -55,6 +127,8 @@ function SectionCard({
 }
 
 function LevelCard({ xp }: { xp: number }) {
+  const lang = useLang()
+  const t = STR[lang]
   const info = levelFromXp(xp)
   return (
     <section className="rounded-2xl border border-hairline bg-surface p-5 shadow-soft">
@@ -87,14 +161,14 @@ function LevelCard({ xp }: { xp: number }) {
           </div>
           <div className="mt-1.5 flex items-baseline justify-between gap-3 text-xs text-muted">
             <span className="truncate">
-              <span className="hidden sm:inline">Reviews and games earn XP · </span>
-              {info.totalXp.toLocaleString()} XP total
+              <span className="hidden sm:inline">{t.earnXp}</span>
+              {t.xpTotal(info.totalXp.toLocaleString(dateLocale(lang)))}
             </span>
             <Link
               to="/achievements"
               className="shrink-0 font-medium text-vermilion transition-opacity hover:opacity-80"
             >
-              Achievements →
+              {t.achievements}
             </Link>
           </div>
         </div>
@@ -106,10 +180,19 @@ function LevelCard({ xp }: { xp: number }) {
 export default function DashboardPage() {
   const state = useStore()
   const stats = computeStats(state)
+  const lang = useLang()
+  const t = STR[lang]
+
+  const practiceModes = [
+    { to: '/practice/quiz', label: t.modes.quiz, jp: '選' },
+    { to: '/practice/typing', label: t.modes.typing, jp: '打' },
+    { to: '/practice/matching', label: t.modes.matching, jp: '対' },
+    { to: '/practice/kana-rain', label: t.modes.kanaRain, jp: '雨' },
+  ]
 
   const now = new Date()
-  const hello = greeting(now.getHours())
-  const dateLabel = now.toLocaleDateString(undefined, {
+  const hello = greetingKey(now.getHours())
+  const dateLabel = now.toLocaleDateString(dateLocale(lang), {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -117,15 +200,15 @@ export default function DashboardPage() {
 
   const pending = stats.dueCount + stats.newRemaining
   const breakdown = [
-    stats.dueCount > 0 && `${stats.dueCount} due`,
-    stats.newRemaining > 0 && `${stats.newRemaining} new`,
+    stats.dueCount > 0 && t.dueCount(stats.dueCount),
+    stats.newRemaining > 0 && t.newCount(stats.newRemaining),
   ]
     .filter(Boolean)
     .join(' · ')
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <PageHeader title={hello.en} jp={hello.jp} subtitle={dateLabel} />
+      <PageHeader title={t.greetings[hello.key]} jp={hello.jp} subtitle={dateLabel} />
 
       {/* Primary CTA */}
       {pending > 0 ? (
@@ -137,13 +220,13 @@ export default function DashboardPage() {
             復
           </span>
           <div className="relative">
-            <h2 className="text-lg font-semibold">Time to review</h2>
-            <p className="mt-1 text-sm text-muted">{breakdown} waiting for you</p>
+            <h2 className="text-lg font-semibold">{t.timeToReview}</h2>
+            <p className="mt-1 text-sm text-muted">{t.waitingForYou(breakdown)}</p>
             <Link
               to="/review"
               className="mt-5 inline-flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-vermilion px-8 font-medium text-surface shadow-soft transition-transform active:scale-[0.98] sm:w-auto"
             >
-              Start review
+              {t.startReview}
               <span aria-hidden className="ml-2">
                 →
               </span>
@@ -156,14 +239,14 @@ export default function DashboardPage() {
             休
           </span>
           <div>
-            <h2 className="text-lg font-semibold">All caught up</h2>
+            <h2 className="text-lg font-semibold">{t.allCaughtUp}</h2>
             <p className="mt-0.5 text-sm text-muted">
               {stats.nextDueAt
-                ? `Next review in ${formatDuration(stats.nextDueAt - Date.now())}.`
-                : 'Nothing scheduled yet — new cards arrive tomorrow.'}
+                ? t.nextReviewIn(formatDuration(stats.nextDueAt - Date.now()))
+                : t.nothingScheduled}
             </p>
             <Link to="/practice" className="mt-2 inline-block text-sm font-medium text-vermilion">
-              Play a practice game →
+              {t.playPractice}
             </Link>
           </div>
         </section>
@@ -174,9 +257,9 @@ export default function DashboardPage() {
 
       {/* Stat tiles */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Due today">{stats.dueCount}</StatTile>
-        <StatTile label="New today">{stats.newRemaining}</StatTile>
-        <StatTile label="Day streak">
+        <StatTile label={t.dueToday}>{stats.dueCount}</StatTile>
+        <StatTile label={t.newToday}>{stats.newRemaining}</StatTile>
+        <StatTile label={t.dayStreak}>
           {stats.streak}
           <span
             aria-hidden
@@ -187,7 +270,7 @@ export default function DashboardPage() {
         </StatTile>
         <StatTile
           label={
-            stats.accuracy !== null ? `Mastered · ${stats.accuracy}% correct` : 'Mastered'
+            stats.accuracy !== null ? t.masteredAccuracy(stats.accuracy) : t.mastered
           }
         >
           {stats.mastered}
@@ -196,27 +279,27 @@ export default function DashboardPage() {
         </StatTile>
       </div>
 
-      <SectionCard title="Activity" aside="last 16 weeks">
+      <SectionCard title={t.activity} aside={t.last16Weeks}>
         <Heatmap activity={state.activity} />
       </SectionCard>
 
-      <SectionCard title="Reviews per day" aside="last 14 days">
+      <SectionCard title={t.reviewsPerDay} aside={t.last14Days}>
         <ReviewsChart activity={state.activity} />
       </SectionCard>
 
       {/* Practice shortcuts */}
       <section>
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold">Jump into practice</h2>
+          <h2 className="text-sm font-semibold">{t.jumpIntoPractice}</h2>
           <Link
             to="/practice"
             className="text-xs font-medium text-muted transition-colors hover:text-sumi"
           >
-            All modes →
+            {t.allModes}
           </Link>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {PRACTICE_MODES.map((mode) => (
+          {practiceModes.map((mode) => (
             <Link
               key={mode.to}
               to={mode.to}

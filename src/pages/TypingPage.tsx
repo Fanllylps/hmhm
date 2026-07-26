@@ -6,9 +6,64 @@ import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import { shuffle, usePracticePool } from '../lib/practice'
 import { matchesRomaji, normalizeInput } from '../lib/romaji'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  title: 'Typing',
+  idleSubtitle: 'See the kana, type the rōmaji',
+  playingSubtitle: 'Type the rōmaji, press Enter',
+  intro:
+    "Type each kana's rōmaji and press Enter. Consecutive correct answers build your combo — a miss resets it and brings that kana back sooner in your reviews.",
+  poolSize: (n: number) => `${n} kana in rotation`,
+  start: 'Start typing',
+  orEnter: 'or press Enter',
+  combo: 'Combo',
+  best: (n: number) => `Best ×${n}`,
+  sessionComplete: 'Session complete',
+  summary: (n: number, acc: string) => `${n} kana typed · ${acc} correct`,
+  answered: 'Answered',
+  correct: 'Correct',
+  bestCombo: 'Best combo',
+  playAgain: 'Play again',
+  backToPractice: 'Back to practice',
+  enterToPlayAgain: 'Enter to play again',
+  placeholder: 'rōmaji',
+  inputAria: 'Type the rōmaji for the kana shown',
+  answeredLower: 'answered',
+  accuracyLower: 'accuracy',
+  endSession: 'End session',
+}
+
+const ID: typeof EN = {
+  title: 'Typing',
+  idleSubtitle: 'Lihat kana-nya, ketik rōmaji-nya',
+  playingSubtitle: 'Ketik rōmaji-nya, tekan Enter',
+  intro:
+    'Ketik rōmaji tiap kana lalu tekan Enter. Jawaban benar berturut-turut membangun combo — sekali salah combo kembali ke nol dan kana itu muncul lagi lebih cepat di review-mu.',
+  poolSize: (n: number) => `${n} kana dalam rotasi`,
+  start: 'Mulai mengetik',
+  orEnter: 'atau tekan Enter',
+  combo: 'Combo',
+  best: (n: number) => `Terbaik ×${n}`,
+  sessionComplete: 'Sesi selesai',
+  summary: (n: number, acc: string) => `${n} kana diketik · ${acc} benar`,
+  answered: 'Dijawab',
+  correct: 'Benar',
+  bestCombo: 'Combo terbaik',
+  playAgain: 'Main lagi',
+  backToPractice: 'Kembali ke latihan',
+  enterToPlayAgain: 'Enter untuk main lagi',
+  placeholder: 'rōmaji',
+  inputAria: 'Ketik rōmaji untuk kana yang ditampilkan',
+  answeredLower: 'dijawab',
+  accuracyLower: 'akurasi',
+  endSession: 'Akhiri sesi',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 /** How long the correct romaji stays revealed after a miss. */
 const WRONG_REVEAL_MS = 1200
@@ -23,13 +78,14 @@ type Phase = 'idle' | 'playing' | 'done'
 type Feedback = 'correct' | 'wrong' | null
 
 function ComboMeter({ combo, best }: { combo: number; best: number }) {
+  const t = STR[useLang()]
   const hot = combo >= HOT_COMBO
   const pct = (Math.min(combo, COMBO_BAR_MAX) / COMBO_BAR_MAX) * 100
   return (
     <div className="mb-4">
       <div className="flex items-end justify-between">
         <div className="flex items-baseline gap-2">
-          <span className="text-xs font-medium uppercase tracking-widest text-muted">Combo</span>
+          <span className="text-xs font-medium uppercase tracking-widest text-muted">{t.combo}</span>
           <motion.span
             key={combo}
             initial={{ scale: combo > 0 ? 1.35 : 1 }}
@@ -55,7 +111,7 @@ function ComboMeter({ combo, best }: { combo: number; best: number }) {
             )}
           </AnimatePresence>
         </div>
-        <span className="text-xs tabular-nums text-muted">Best ×{best}</span>
+        <span className="text-xs tabular-nums text-muted">{t.best(best)}</span>
       </div>
       <div aria-hidden className="mt-1.5 h-1 overflow-hidden rounded-full bg-hairline">
         <motion.div
@@ -71,6 +127,8 @@ function ComboMeter({ combo, best }: { combo: number; best: number }) {
 export default function TypingPage() {
   const pool = usePracticePool()
   const recordPractice = useStore((s) => s.recordPractice)
+  const lang = useLang()
+  const t = STR[lang]
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [current, setCurrent] = useState<KanaEntry | null>(null)
@@ -194,9 +252,9 @@ export default function TypingPage() {
     return (
       <div className="mx-auto max-w-xl">
         <PageHeader
-          title="Typing"
+          title={t.title}
           jp="タイピング"
-          subtitle="See the kana, type the rōmaji"
+          subtitle={t.idleSubtitle}
           backTo="/practice"
         />
         <motion.div
@@ -212,21 +270,19 @@ export default function TypingPage() {
             </span>
           </div>
           <p className="mx-auto mt-6 max-w-sm text-sm text-muted">
-            Type each kana's rōmaji and press Enter. Consecutive correct answers
-            build your combo — a miss resets it and brings that kana back sooner
-            in your reviews.
+            {t.intro}
           </p>
           <p className="mt-3 text-xs text-muted">
-            {pool.length} kana in rotation
+            {t.poolSize(pool.length)}
           </p>
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={start}
             className="mt-8 w-full rounded-2xl bg-vermilion px-8 py-4 font-medium text-surface sm:w-auto"
           >
-            Start typing
+            {t.start}
           </motion.button>
-          <p className="mt-3 hidden text-xs text-muted sm:block">or press Enter</p>
+          <p className="mt-3 hidden text-xs text-muted sm:block">{t.orEnter}</p>
         </motion.div>
       </div>
     )
@@ -236,7 +292,7 @@ export default function TypingPage() {
   if (phase === 'done') {
     return (
       <div className="mx-auto max-w-md">
-        <PageHeader title="Typing" jp="タイピング" backTo="/practice" />
+        <PageHeader title={t.title} jp="タイピング" backTo="/practice" />
         <Confetti />
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
@@ -246,18 +302,18 @@ export default function TypingPage() {
           <span aria-hidden className="font-kana text-5xl">
             打
           </span>
-          <h2 className="mt-4 text-2xl font-semibold">Session complete</h2>
+          <h2 className="mt-4 text-2xl font-semibold">{t.sessionComplete}</h2>
           <p className="mt-1 text-sm text-muted">
-            {answered} kana typed · {accuracyLabel} correct
+            {t.summary(answered, accuracyLabel)}
           </p>
           <div className="mt-6 grid grid-cols-3 gap-2 text-center text-sm">
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold tabular-nums">{answered}</div>
-              <div className="mt-0.5 text-xs text-muted">Answered</div>
+              <div className="mt-0.5 text-xs text-muted">{t.answered}</div>
             </div>
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold tabular-nums text-matcha">{correctCount}</div>
-              <div className="mt-0.5 text-xs text-muted">Correct</div>
+              <div className="mt-0.5 text-xs text-muted">{t.correct}</div>
             </div>
             <div className="rounded-xl bg-washi px-2 py-3">
               <div
@@ -267,7 +323,7 @@ export default function TypingPage() {
               >
                 ×{bestCombo}
               </div>
-              <div className="mt-0.5 text-xs text-muted">Best combo</div>
+              <div className="mt-0.5 text-xs text-muted">{t.bestCombo}</div>
             </div>
           </div>
           <div className="mt-8 flex flex-col gap-2">
@@ -276,16 +332,16 @@ export default function TypingPage() {
               onClick={start}
               className="rounded-2xl bg-vermilion px-6 py-3 font-medium text-surface"
             >
-              Play again
+              {t.playAgain}
             </motion.button>
             <Link
               to="/practice"
               className="rounded-2xl border border-hairline px-6 py-3 font-medium text-muted transition-colors hover:text-sumi"
             >
-              Back to practice
+              {t.backToPractice}
             </Link>
           </div>
-          <p className="mt-4 hidden text-xs text-muted sm:block">Enter to play again</p>
+          <p className="mt-4 hidden text-xs text-muted sm:block">{t.enterToPlayAgain}</p>
         </motion.div>
       </div>
     )
@@ -297,9 +353,9 @@ export default function TypingPage() {
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader
-        title="Typing"
+        title={t.title}
         jp="タイピング"
-        subtitle="Type the rōmaji, press Enter"
+        subtitle={t.playingSubtitle}
         backTo="/practice"
       />
 
@@ -375,8 +431,8 @@ export default function TypingPage() {
           spellCheck={false}
           enterKeyHint="go"
           readOnly={feedback === 'wrong'}
-          placeholder="rōmaji"
-          aria-label="Type the rōmaji for the kana shown"
+          placeholder={t.placeholder}
+          aria-label={t.inputAria}
           className={`w-full rounded-2xl border bg-surface px-4 py-4 text-center text-xl font-medium tracking-wide shadow-soft transition-colors placeholder:text-muted/50 ${
             feedback === 'wrong'
               ? 'border-vermilion/70 text-vermilion'
@@ -387,11 +443,11 @@ export default function TypingPage() {
 
       <div className="mt-6 flex items-center justify-center gap-4 text-sm text-muted">
         <span>
-          <span className="font-semibold tabular-nums text-sumi">{answered}</span> answered
+          <span className="font-semibold tabular-nums text-sumi">{answered}</span> {t.answeredLower}
         </span>
         <span aria-hidden className="h-3 w-px bg-hairline" />
         <span>
-          <span className="font-semibold tabular-nums text-sumi">{accuracyLabel}</span> accuracy
+          <span className="font-semibold tabular-nums text-sumi">{accuracyLabel}</span> {t.accuracyLower}
         </span>
       </div>
 
@@ -400,7 +456,7 @@ export default function TypingPage() {
           onClick={endSession}
           className="rounded-full px-5 py-3 text-sm font-medium text-muted transition-colors hover:text-sumi"
         >
-          End session
+          {t.endSession}
         </button>
       </div>
     </div>

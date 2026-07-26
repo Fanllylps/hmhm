@@ -7,9 +7,66 @@ import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import { usePracticePool } from '../lib/practice'
 import { matchesRomaji, normalizeInput } from '../lib/romaji'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  title: 'Kana Rain',
+  subtitle: 'Type the romaji before the kana reaches the ground.',
+  howToPlay: 'How to play',
+  rule1: 'Kana fall from the top. Type the romaji and press Enter — an exact match pops on its own.',
+  rule2: (points: number) =>
+    `The lowest kana pops first, +${points} points each. The rain falls faster as your score climbs.`,
+  rule3: (lives: number) =>
+    `A kana that reaches the ground costs one of your ${lives} lives — and comes back sooner in Review.`,
+  bestScore: 'Best score',
+  start: 'Start the rain',
+  rainStopped: 'The rain has stopped',
+  popped: (n: number) =>
+    `${n} kana popped${n === 0 ? ' — the first drops are the hardest' : ''}`,
+  newRecord: 'New record!',
+  best: (n: number) => `Best ${n}`,
+  playAgain: 'Play again',
+  backToPractice: 'Back to practice',
+  score: 'Score',
+  livesLeft: (lives: number, total: number) => `${lives} of ${total} lives left`,
+  end: 'End',
+  fallingKana: 'Falling kana',
+  placeholder: 'type romaji…',
+  inputAria: 'Type the romaji of a falling kana',
+  hint: 'Enter to pop · exact matches pop on their own · Esc to quit',
+}
+
+const ID: typeof EN = {
+  title: 'Kana Rain',
+  subtitle: 'Ketik romaji sebelum kana menyentuh tanah.',
+  howToPlay: 'Cara main',
+  rule1: 'Kana berjatuhan dari atas. Ketik romaji-nya lalu tekan Enter — yang persis cocok meletus sendiri.',
+  rule2: (points: number) =>
+    `Kana paling bawah meletus lebih dulu, +${points} poin per kana. Hujan makin cepat seiring skormu naik.`,
+  rule3: (lives: number) =>
+    `Kana yang menyentuh tanah mengurangi satu dari ${lives} nyawamu — dan muncul lagi lebih cepat di Review.`,
+  bestScore: 'Skor terbaik',
+  start: 'Mulai hujannya',
+  rainStopped: 'Hujan sudah berhenti',
+  popped: (n: number) =>
+    `${n} kana meletus${n === 0 ? ' — tetes pertama memang paling sulit' : ''}`,
+  newRecord: 'Rekor baru!',
+  best: (n: number) => `Terbaik ${n}`,
+  playAgain: 'Main lagi',
+  backToPractice: 'Kembali ke latihan',
+  score: 'Skor',
+  livesLeft: (lives: number, total: number) => `${lives} dari ${total} nyawa tersisa`,
+  end: 'Selesai',
+  fallingKana: 'Kana yang berjatuhan',
+  placeholder: 'ketik romaji…',
+  inputAria: 'Ketik romaji dari kana yang jatuh',
+  hint: 'Enter untuk meletuskan · yang persis cocok meletus sendiri · Esc untuk keluar',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 const LIVES = 3
 const POINTS = 10
@@ -81,6 +138,7 @@ const IDLE_RAIN = [
 ]
 
 function IdleScreen({ best, onStart }: { best: number; onStart: () => void }) {
+  const t = STR[useLang()]
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -104,25 +162,25 @@ function IdleScreen({ best, onStart }: { best: number; onStart: () => void }) {
         <div className="absolute inset-x-6 bottom-3 border-t border-dashed border-hairline" />
       </div>
 
-      <h2 className="mt-6 text-lg font-semibold">How to play</h2>
+      <h2 className="mt-6 text-lg font-semibold">{t.howToPlay}</h2>
       <ul className="mt-3 space-y-2.5 text-sm text-muted">
         <li className="flex gap-2.5">
           <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-vermilion/60" />
-          Kana fall from the top. Type the romaji and press Enter — an exact match pops on its own.
+          {t.rule1}
         </li>
         <li className="flex gap-2.5">
           <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-vermilion/60" />
-          The lowest kana pops first, +{POINTS} points each. The rain falls faster as your score climbs.
+          {t.rule2(POINTS)}
         </li>
         <li className="flex gap-2.5">
           <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-vermilion/60" />
-          A kana that reaches the ground costs one of your {LIVES} lives — and comes back sooner in Review.
+          {t.rule3(LIVES)}
         </li>
       </ul>
 
       {best > 0 && (
         <div className="mt-6 flex items-center justify-between rounded-xl bg-washi px-4 py-3 text-sm">
-          <span className="text-muted">Best score</span>
+          <span className="text-muted">{t.bestScore}</span>
           <span className="font-semibold tabular-nums">{best}</span>
         </div>
       )}
@@ -132,7 +190,7 @@ function IdleScreen({ best, onStart }: { best: number; onStart: () => void }) {
         onClick={onStart}
         className="mt-6 w-full rounded-2xl bg-vermilion py-4 font-medium text-surface"
       >
-        Start the rain
+        {t.start}
         <span className="ml-2 hidden text-xs opacity-70 sm:inline">Enter</span>
       </motion.button>
     </motion.div>
@@ -150,6 +208,7 @@ function GameOverScreen({
   newRecord: boolean
   onPlayAgain: () => void
 }) {
+  const t = STR[useLang()]
   const popped = score / POINTS
   return (
     <div className="text-center">
@@ -162,19 +221,19 @@ function GameOverScreen({
         <span aria-hidden className="font-kana text-5xl text-muted">
           雨
         </span>
-        <h2 className="mt-4 text-2xl font-semibold">The rain has stopped</h2>
+        <h2 className="mt-4 text-2xl font-semibold">{t.rainStopped}</h2>
         <p className="mt-1 text-sm text-muted">
-          {popped} kana popped{popped === 0 ? ' — the first drops are the hardest' : ''}
+          {t.popped(popped)}
         </p>
         <div className="mt-6 text-6xl font-semibold tabular-nums">{score}</div>
         <div className="mt-3 flex items-center justify-center gap-2 text-sm text-muted">
           {newRecord ? (
             <>
               <Hanko char="新" size={30} />
-              <span className="font-semibold text-vermilion">New record!</span>
+              <span className="font-semibold text-vermilion">{t.newRecord}</span>
             </>
           ) : (
-            <>Best {best}</>
+            <>{t.best(best)}</>
           )}
         </div>
         <div className="mt-8 flex flex-col gap-2">
@@ -183,14 +242,14 @@ function GameOverScreen({
             onClick={onPlayAgain}
             className="rounded-2xl bg-vermilion px-6 py-3 font-medium text-surface"
           >
-            Play again
+            {t.playAgain}
             <span className="ml-2 hidden text-xs opacity-70 sm:inline">Enter</span>
           </motion.button>
           <Link
             to="/practice"
             className="rounded-2xl border border-hairline px-6 py-3 font-medium text-muted transition-colors hover:text-sumi"
           >
-            Back to practice
+            {t.backToPractice}
           </Link>
         </div>
       </motion.div>
@@ -205,6 +264,8 @@ export default function KanaRainPage() {
   const audio = useStore((s) => s.settings.audio)
   const best = useStore((s) => s.best.kanaRain)
   const livePool = usePracticePool()
+  const lang = useLang()
+  const t = STR[lang]
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [fallers, setFallers] = useState<Faller[]>([])
@@ -434,9 +495,9 @@ export default function KanaRainPage() {
           pixel matters on a phone with the keyboard up. */}
       {phase !== 'playing' && (
         <PageHeader
-          title="Kana Rain"
+          title={t.title}
           jp="雨"
-          subtitle="Type the romaji before the kana reaches the ground."
+          subtitle={t.subtitle}
           backTo="/practice"
         />
       )}
@@ -462,7 +523,7 @@ export default function KanaRainPage() {
                   雨
                 </span>
                 <div className="text-sm text-muted">
-                  Score{' '}
+                  {t.score}{' '}
                   <span className="ml-1 text-lg font-semibold tabular-nums text-sumi">
                     {score}
                   </span>
@@ -471,7 +532,7 @@ export default function KanaRainPage() {
               <div className="flex items-center gap-3">
                 <div
                   role="status"
-                  aria-label={`${lives} of ${LIVES} lives left`}
+                  aria-label={t.livesLeft(lives, LIVES)}
                   className="flex items-center gap-1.5"
                 >
                   {Array.from({ length: LIVES }, (_, i) => (
@@ -482,13 +543,13 @@ export default function KanaRainPage() {
                   onClick={quitGame}
                   className="rounded-full border border-hairline px-3 py-1 text-xs font-medium text-muted transition-colors hover:text-sumi"
                 >
-                  End
+                  {t.end}
                 </button>
               </div>
             </div>
 
             <div
-              aria-label="Falling kana"
+              aria-label={t.fallingKana}
               onPointerDown={(e) => {
                 e.preventDefault()
                 inputRef.current?.focus()
@@ -580,14 +641,14 @@ export default function KanaRainPage() {
               autoComplete="off"
               spellCheck={false}
               maxLength={8}
-              placeholder="type romaji…"
-              aria-label="Type the romaji of a falling kana"
+              placeholder={t.placeholder}
+              aria-label={t.inputAria}
               className={`mt-3 w-full rounded-2xl border bg-surface px-4 py-3.5 text-center text-lg tracking-widest shadow-soft transition-colors ${
                 wrong ? 'border-vermilion' : 'border-hairline'
               }`}
             />
             <p className="mt-3 hidden text-center text-xs text-muted sm:block">
-              Enter to pop · exact matches pop on their own · Esc to quit
+              {t.hint}
             </p>
           </motion.div>
         )}

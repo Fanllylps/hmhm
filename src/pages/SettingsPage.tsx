@@ -5,38 +5,133 @@ import PageHeader from '../components/PageHeader'
 import { speak } from '../lib/audio'
 import { dayKey } from '../lib/dates'
 import { haptic } from '../lib/haptics'
+import { useLang } from '../lib/i18n'
 import {
   buildExportPayload,
   parseImportPayload,
   SCHEMA_VERSION,
   useStore,
+  type Lang,
   type Settings,
 } from '../stores/store'
 
-const SCRIPT_OPTIONS: { value: Settings['scripts']; label: string; jp: string }[] = [
-  { value: 'hiragana', label: 'Hiragana', jp: 'あ' },
-  { value: 'katakana', label: 'Katakana', jp: 'ア' },
-  { value: 'both', label: 'Both', jp: 'あア' },
-]
+const EN = {
+  title: 'Settings',
+  subtitle: 'Tune your study flow',
+  study: 'Study',
+  script: 'Script',
+  scriptDesc: 'Which kana appear in reviews and games.',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  groups: {
+    basic: { label: 'Basic', desc: 'Gojūon — the core sounds' },
+    dakuten: { label: 'Dakuten & handakuten', desc: 'ga · za · da · ba · pa' },
+    yoon: { label: 'Yōon', desc: 'kya · shu · cho combinations' },
+    kanji: { label: 'Kanji (JLPT N5)', desc: '80 kanji with meanings & readings' },
+  },
+  keepOne: 'Keep at least one group on',
+  newPerDay: 'New cards per day',
+  newPerDayDesc: 'How many unseen kana each day introduces.',
+  experience: 'Experience',
+  language: 'Language',
+  languageDesc: 'Applies to the whole app.',
+  theme: 'Theme',
+  themeDesc: 'Washi cream by day, warm sumi night by dark.',
+  themes: { system: 'System', light: 'Light', dark: 'Dark' },
+  audio: 'Audio',
+  audioDesc: 'Speak kana aloud with a Japanese voice.',
+  haptics: 'Haptics',
+  hapticsDesc: 'Vibrate on answers and unlocks. Android — iPhones ignore this.',
+  lenient: 'Lenient romaji',
+  lenientDesc: 'Accept shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…',
+  data: 'Data',
+  export: 'Export progress',
+  exportDesc: (n: number) => `Download a JSON backup — ${n} card${n === 1 ? '' : 's'}, stats and scores.`,
+  exportBtn: 'Export',
+  import: 'Import progress',
+  importDesc: 'Restore from a KanaFlow backup file.',
+  importBtn: 'Import',
+  reset: 'Reset progress',
+  resetDesc: 'Deletes cards, stats and scores. Settings are kept.',
+  resetBtn: 'Reset…',
+  msgExported: 'Backup downloaded.',
+  msgImported: 'Progress restored — welcome back.',
+  msgBadFile: 'That file doesn’t look like a KanaFlow backup.',
+  msgReset: 'Progress cleared — fresh start.',
+  resetTitle: 'Reset progress?',
+  resetBody:
+    'This deletes all cards, stats and scores — settings are kept. There is no undo, so consider exporting a backup first.',
+  cancel: 'Cancel',
+  resetConfirm: 'Reset everything',
+}
 
-const GROUP_OPTIONS: {
-  key: keyof Settings['groups']
-  label: string
-  description: string
-  jp: string
-}[] = [
-  { key: 'basic', label: 'Basic', description: 'Gojūon — the core sounds', jp: 'あ' },
-  { key: 'dakuten', label: 'Dakuten & handakuten', description: 'ga · za · da · ba · pa', jp: 'が' },
-  { key: 'yoon', label: 'Yōon', description: 'kya · shu · cho combinations', jp: 'きゃ' },
-  { key: 'kanji', label: 'Kanji (JLPT N5)', description: '80 kanji with meanings & readings', jp: '日' },
-]
+const ID: typeof EN = {
+  title: 'Setelan',
+  subtitle: 'Atur cara belajarmu',
+  study: 'Belajar',
+  script: 'Aksara',
+  scriptDesc: 'Kana mana yang muncul di review dan game.',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  groups: {
+    basic: { label: 'Dasar', desc: 'Gojūon — bunyi-bunyi inti' },
+    dakuten: { label: 'Dakuten & handakuten', desc: 'ga · za · da · ba · pa' },
+    yoon: { label: 'Yōon', desc: 'gabungan kya · shu · cho' },
+    kanji: { label: 'Kanji (JLPT N5)', desc: '80 kanji dengan arti & cara baca' },
+  },
+  keepOne: 'Minimal satu kelompok harus aktif',
+  newPerDay: 'Kartu baru per hari',
+  newPerDayDesc: 'Berapa kana baru yang diperkenalkan tiap hari.',
+  experience: 'Pengalaman',
+  language: 'Bahasa',
+  languageDesc: 'Berlaku untuk seluruh aplikasi.',
+  theme: 'Tema',
+  themeDesc: 'Krem washi di siang hari, sumi hangat di malam hari.',
+  themes: { system: 'Sistem', light: 'Terang', dark: 'Gelap' },
+  audio: 'Audio',
+  audioDesc: 'Ucapkan kana dengan suara bahasa Jepang.',
+  haptics: 'Getaran',
+  hapticsDesc: 'Bergetar saat menjawab. Khusus Android — iPhone mengabaikannya.',
+  lenient: 'Romaji longgar',
+  lenientDesc: 'Terima shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…',
+  data: 'Data',
+  export: 'Ekspor progres',
+  exportDesc: (n: number) => `Unduh cadangan JSON — ${n} kartu, statistik, dan skor.`,
+  exportBtn: 'Ekspor',
+  import: 'Impor progres',
+  importDesc: 'Pulihkan dari file cadangan KanaFlow.',
+  importBtn: 'Impor',
+  reset: 'Hapus progres',
+  resetDesc: 'Menghapus kartu, statistik, dan skor. Setelan tetap disimpan.',
+  resetBtn: 'Hapus…',
+  msgExported: 'Cadangan berhasil diunduh.',
+  msgImported: 'Progres dipulihkan — selamat datang kembali.',
+  msgBadFile: 'File itu sepertinya bukan cadangan KanaFlow.',
+  msgReset: 'Progres dihapus — mulai dari awal.',
+  resetTitle: 'Hapus progres?',
+  resetBody:
+    'Semua kartu, statistik, dan skor akan dihapus — setelan tetap disimpan. Tidak bisa dibatalkan, jadi sebaiknya ekspor cadangan dulu.',
+  cancel: 'Batal',
+  resetConfirm: 'Hapus semuanya',
+}
 
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
+
+const SCRIPT_JP: Record<Settings['scripts'], string> = {
+  hiragana: 'あ',
+  katakana: 'ア',
+  both: 'あア',
+}
+const GROUP_KEYS = ['basic', 'dakuten', 'yoon', 'kanji'] as const
+const GROUP_JP: Record<(typeof GROUP_KEYS)[number], string> = {
+  basic: 'あ',
+  dakuten: 'が',
+  yoon: 'きゃ',
+  kanji: '日',
+}
 const NEW_PER_DAY_OPTIONS = [5, 10, 15, 20, 30]
-
-const THEME_OPTIONS: { value: Settings['theme']; label: string; jp: string }[] = [
-  { value: 'system', label: 'System', jp: '自' },
-  { value: 'light', label: 'Light', jp: '昼' },
-  { value: 'dark', label: 'Dark', jp: '夜' },
+const THEME_JP: Record<Settings['theme'], string> = { system: '自', light: '昼', dark: '夜' }
+const LANG_OPTIONS: { value: Lang; label: string; jp: string }[] = [
+  { value: 'en', label: 'English', jp: '英' },
+  { value: 'id', label: 'Indonesia', jp: '尼' },
 ]
 
 /** Small switch: sumi track when on, hairline when off, spring-animated knob. */
@@ -131,12 +226,62 @@ function SwitchRow({
   )
 }
 
+/** Segmented control with an animated active pill. */
+function Segmented<T extends string>({
+  ariaLabel,
+  layoutId,
+  options,
+  value,
+  onChange,
+}: {
+  ariaLabel: string
+  layoutId: string
+  options: { value: T; label: string; jp: string }[]
+  value: T
+  onChange: (next: T) => void
+}) {
+  return (
+    <div role="radiogroup" aria-label={ariaLabel} className="mt-3 flex rounded-xl bg-washi p-1">
+      {options.map((opt) => {
+        const active = value === opt.value
+        return (
+          <button
+            key={opt.value}
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={`relative min-h-[44px] flex-1 rounded-lg px-2 text-sm font-medium transition-colors ${
+              active ? 'text-sumi' : 'text-muted hover:text-sumi'
+            }`}
+          >
+            {active && (
+              <motion.span
+                layoutId={layoutId}
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                className="absolute inset-0 rounded-lg border border-hairline bg-surface shadow-soft"
+              />
+            )}
+            <span className="relative flex items-center justify-center gap-1.5">
+              <span aria-hidden className="font-kana text-base">
+                {opt.jp}
+              </span>
+              {opt.label}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const settings = useStore((s) => s.settings)
   const cardCount = useStore((s) => Object.keys(s.cards).length)
   const updateSettings = useStore((s) => s.updateSettings)
   const importAll = useStore((s) => s.importAll)
   const resetProgress = useStore((s) => s.resetProgress)
+  const lang = useLang()
+  const t = STR[lang]
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [confirmReset, setConfirmReset] = useState(false)
@@ -145,13 +290,13 @@ export default function SettingsPage() {
   // Auto-dismiss data messages; cleared on unmount.
   useEffect(() => {
     if (!dataMsg) return
-    const t = setTimeout(() => setDataMsg(null), 5000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setDataMsg(null), 5000)
+    return () => clearTimeout(timer)
   }, [dataMsg])
 
-  const enabledGroups = GROUP_OPTIONS.filter((g) => settings.groups[g.key]).length
+  const enabledGroups = GROUP_KEYS.filter((g) => settings.groups[g]).length
 
-  const setGroup = (key: keyof Settings['groups'], value: boolean) => {
+  const setGroup = (key: (typeof GROUP_KEYS)[number], value: boolean) => {
     const next = { ...settings.groups, [key]: value }
     // Guard: at least one group must stay enabled.
     if (!next.basic && !next.dakuten && !next.yoon && !next.kanji) return
@@ -173,7 +318,7 @@ export default function SettingsPage() {
     a.download = `kanaflow-backup-${dayKey()}.json`
     a.click()
     URL.revokeObjectURL(url)
-    setDataMsg({ tone: 'success', text: 'Backup downloaded.' })
+    setDataMsg({ tone: 'success', text: t.msgExported })
   }
 
   const handleImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -184,78 +329,59 @@ export default function SettingsPage() {
       const text = await file.text()
       const data = parseImportPayload(text)
       importAll(data)
-      setDataMsg({ tone: 'success', text: 'Progress restored — welcome back.' })
+      setDataMsg({ tone: 'success', text: t.msgImported })
     } catch {
-      setDataMsg({ tone: 'error', text: 'That file doesn’t look like a KanaFlow backup.' })
+      setDataMsg({ tone: 'error', text: t.msgBadFile })
     }
   }
 
   const handleReset = () => {
     resetProgress()
     setConfirmReset(false)
-    setDataMsg({ tone: 'success', text: 'Progress cleared — fresh start.' })
+    setDataMsg({ tone: 'success', text: t.msgReset })
   }
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader title="Settings" jp="設定" subtitle="Tune your study flow" backTo="/" />
+      <PageHeader title={t.title} jp="設定" subtitle={t.subtitle} backTo="/" />
 
-      <Section title="Study" jp="学">
+      <Section title={t.study} jp="学">
         <div className="px-5 py-4">
-          <div className="font-medium">Script</div>
-          <p className="mt-0.5 text-sm text-muted">Which kana appear in reviews and games.</p>
-          <div role="radiogroup" aria-label="Script" className="mt-3 flex rounded-xl bg-washi p-1">
-            {SCRIPT_OPTIONS.map((opt) => {
-              const active = settings.scripts === opt.value
-              return (
-                <button
-                  key={opt.value}
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => updateSettings({ scripts: opt.value })}
-                  className={`relative min-h-[44px] flex-1 rounded-lg px-2 text-sm font-medium transition-colors ${
-                    active ? 'text-sumi' : 'text-muted hover:text-sumi'
-                  }`}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="settings-script-pill"
-                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                      className="absolute inset-0 rounded-lg border border-hairline bg-surface shadow-soft"
-                    />
-                  )}
-                  <span className="relative flex items-center justify-center gap-1.5">
-                    <span aria-hidden className="font-kana text-base">
-                      {opt.jp}
-                    </span>
-                    {opt.label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <div className="font-medium">{t.script}</div>
+          <p className="mt-0.5 text-sm text-muted">{t.scriptDesc}</p>
+          <Segmented
+            ariaLabel={t.script}
+            layoutId="settings-script-pill"
+            value={settings.scripts}
+            onChange={(scripts) => updateSettings({ scripts })}
+            options={(['hiragana', 'katakana', 'both'] as const).map((value) => ({
+              value,
+              label: t.scripts[value],
+              jp: SCRIPT_JP[value],
+            }))}
+          />
         </div>
 
-        {GROUP_OPTIONS.map((g) => {
-          const on = settings.groups[g.key]
+        {GROUP_KEYS.map((key) => {
+          const on = settings.groups[key]
           const locked = on && enabledGroups === 1
           return (
             <SwitchRow
-              key={g.key}
-              jp={g.jp}
-              label={g.label}
-              description={g.description}
-              note={locked ? 'Keep at least one group on' : undefined}
+              key={key}
+              jp={GROUP_JP[key]}
+              label={t.groups[key].label}
+              description={t.groups[key].desc}
+              note={locked ? t.keepOne : undefined}
               checked={on}
               disabled={locked}
-              onChange={(next) => setGroup(g.key, next)}
+              onChange={(next) => setGroup(key, next)}
             />
           )
         })}
 
         <div className="px-5 py-4">
-          <div className="font-medium">New cards per day</div>
-          <p className="mt-0.5 text-sm text-muted">How many unseen kana each day introduces.</p>
+          <div className="font-medium">{t.newPerDay}</div>
+          <p className="mt-0.5 text-sm text-muted">{t.newPerDayDesc}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {NEW_PER_DAY_OPTIONS.map((n) => {
               const active = settings.newPerDay === n
@@ -279,52 +405,42 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="Experience" jp="音">
+      <Section title={t.experience} jp="音">
         <div className="px-5 py-4">
-          <div className="font-medium">Theme</div>
-          <p className="mt-0.5 text-sm text-muted">
-            Washi cream by day, warm sumi night by dark.
-          </p>
-          <div role="radiogroup" aria-label="Theme" className="mt-3 flex rounded-xl bg-washi p-1">
-            {THEME_OPTIONS.map((opt) => {
-              const active = settings.theme === opt.value
-              return (
-                <button
-                  key={opt.value}
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => updateSettings({ theme: opt.value })}
-                  className={`relative min-h-[44px] flex-1 rounded-lg px-2 text-sm font-medium transition-colors ${
-                    active ? 'text-sumi' : 'text-muted hover:text-sumi'
-                  }`}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="settings-theme-pill"
-                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                      className="absolute inset-0 rounded-lg border border-hairline bg-surface shadow-soft"
-                    />
-                  )}
-                  <span className="relative flex items-center justify-center gap-1.5">
-                    <span aria-hidden className="font-kana text-base">
-                      {opt.jp}
-                    </span>
-                    {opt.label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <div className="font-medium">{t.language}</div>
+          <p className="mt-0.5 text-sm text-muted">{t.languageDesc}</p>
+          <Segmented
+            ariaLabel={t.language}
+            layoutId="settings-lang-pill"
+            value={settings.language}
+            onChange={(language) => updateSettings({ language })}
+            options={LANG_OPTIONS}
+          />
+        </div>
+        <div className="px-5 py-4">
+          <div className="font-medium">{t.theme}</div>
+          <p className="mt-0.5 text-sm text-muted">{t.themeDesc}</p>
+          <Segmented
+            ariaLabel={t.theme}
+            layoutId="settings-theme-pill"
+            value={settings.theme}
+            onChange={(theme) => updateSettings({ theme })}
+            options={(['system', 'light', 'dark'] as const).map((value) => ({
+              value,
+              label: t.themes[value],
+              jp: THEME_JP[value],
+            }))}
+          />
         </div>
         <SwitchRow
-          label="Audio"
-          description="Speak kana aloud with a Japanese voice."
+          label={t.audio}
+          description={t.audioDesc}
           checked={settings.audio}
           onChange={setAudio}
         />
         <SwitchRow
-          label="Haptics"
-          description="Vibrate on answers and unlocks. Android — iPhones ignore this."
+          label={t.haptics}
+          description={t.hapticsDesc}
           checked={settings.haptics}
           onChange={(next) => {
             updateSettings({ haptics: next })
@@ -333,42 +449,39 @@ export default function SettingsPage() {
           }}
         />
         <SwitchRow
-          label="Lenient romaji"
-          description="Accept shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…"
+          label={t.lenient}
+          description={t.lenientDesc}
           checked={settings.lenient}
           onChange={(next) => updateSettings({ lenient: next })}
         />
       </Section>
 
-      <Section title="Data" jp="保">
+      <Section title={t.data} jp="保">
         <div className="flex items-center justify-between gap-4 px-5 py-3.5">
           <div>
-            <div className="font-medium">Export progress</div>
-            <div className="mt-0.5 text-sm text-muted">
-              Download a JSON backup — {cardCount} card{cardCount === 1 ? '' : 's'}, stats and
-              scores.
-            </div>
+            <div className="font-medium">{t.export}</div>
+            <div className="mt-0.5 text-sm text-muted">{t.exportDesc(cardCount)}</div>
           </div>
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={handleExport}
             className="min-h-[44px] shrink-0 rounded-xl border border-hairline px-4 text-sm font-medium text-sumi transition-colors hover:bg-washi"
           >
-            Export
+            {t.exportBtn}
           </motion.button>
         </div>
 
         <div className="flex items-center justify-between gap-4 px-5 py-3.5">
           <div>
-            <div className="font-medium">Import progress</div>
-            <div className="mt-0.5 text-sm text-muted">Restore from a KanaFlow backup file.</div>
+            <div className="font-medium">{t.import}</div>
+            <div className="mt-0.5 text-sm text-muted">{t.importDesc}</div>
           </div>
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={() => fileRef.current?.click()}
             className="min-h-[44px] shrink-0 rounded-xl border border-hairline px-4 text-sm font-medium text-sumi transition-colors hover:bg-washi"
           >
-            Import
+            {t.importBtn}
           </motion.button>
           <input
             ref={fileRef}
@@ -381,17 +494,15 @@ export default function SettingsPage() {
 
         <div className="flex items-center justify-between gap-4 px-5 py-3.5">
           <div>
-            <div className="font-medium">Reset progress</div>
-            <div className="mt-0.5 text-sm text-muted">
-              Deletes cards, stats and scores. Settings are kept.
-            </div>
+            <div className="font-medium">{t.reset}</div>
+            <div className="mt-0.5 text-sm text-muted">{t.resetDesc}</div>
           </div>
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={() => setConfirmReset(true)}
             className="min-h-[44px] shrink-0 rounded-xl border border-vermilion/40 px-4 text-sm font-medium text-vermilion transition-colors hover:bg-vermilion/5"
           >
-            Reset…
+            {t.resetBtn}
           </motion.button>
         </div>
       </Section>
@@ -420,24 +531,21 @@ export default function SettingsPage() {
         KanaFlow · schema v{SCHEMA_VERSION}
       </p>
 
-      <Modal open={confirmReset} onClose={() => setConfirmReset(false)} title="Reset progress?">
-        <p className="text-sm text-muted">
-          This deletes all cards, stats and scores — settings are kept. There is no undo, so
-          consider exporting a backup first.
-        </p>
+      <Modal open={confirmReset} onClose={() => setConfirmReset(false)} title={t.resetTitle}>
+        <p className="text-sm text-muted">{t.resetBody}</p>
         <div className="mt-6 flex gap-2">
           <button
             onClick={() => setConfirmReset(false)}
             className="min-h-[48px] flex-1 rounded-2xl border border-hairline px-4 font-medium text-muted transition-colors hover:text-sumi"
           >
-            Cancel
+            {t.cancel}
           </button>
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={handleReset}
             className="min-h-[48px] flex-1 rounded-2xl bg-vermilion px-4 font-medium text-surface"
           >
-            Reset everything
+            {t.resetConfirm}
           </motion.button>
         </div>
       </Modal>

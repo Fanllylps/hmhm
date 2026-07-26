@@ -5,10 +5,57 @@ import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { localizedMeaning, useLang } from '../lib/i18n'
 import { shuffle, usePracticePool } from '../lib/practice'
 import { loadStrokes } from '../lib/strokes'
 import { matchStroke, type Pt } from '../lib/strokeMatch'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  emptyTitle: 'No kana in your pool',
+  emptyBody: 'Enable at least one kana group in Settings first.',
+  idleSubtitle: 'Draw each stroke in the right order and direction',
+  idleTitle: 'Learn by writing',
+  idleBody: (n: number) =>
+    `You hear the sound and see the rōmaji — draw the character stroke by stroke with your finger. Wrong strokes shake; two misses reveal a hint. ${n} characters in your pool.`,
+  startWriting: 'Start writing',
+  progress: (written: number, perfect: number) => `${written} written · ${perfect} perfect`,
+  playAudio: 'Play audio',
+  loading: 'Loading strokes…',
+  unavailable: 'Stroke data unavailable',
+  skipArrow: 'Skip →',
+  perfectBadge: 'Perfect!',
+  doneBadge: 'Done',
+  clear: 'Clear',
+  ghostOn: 'Ghost on',
+  ghostOff: 'Ghost off',
+  skip: 'Skip',
+  strokeHint: 'Start each stroke at the pulsing dot · direction matters',
+}
+
+const ID: typeof EN = {
+  emptyTitle: 'Tidak ada kana di kumpulanmu',
+  emptyBody: 'Aktifkan dulu minimal satu kelompok kana di Setelan.',
+  idleSubtitle: 'Gambar tiap goresan dengan urutan dan arah yang benar',
+  idleTitle: 'Belajar sambil menulis',
+  idleBody: (n) =>
+    `Kamu mendengar bunyinya dan melihat rōmajinya — gambar karakternya goresan demi goresan dengan jarimu. Goresan yang salah akan bergetar; dua kali meleset memunculkan petunjuk. ${n} karakter di kumpulanmu.`,
+  startWriting: 'Mulai menulis',
+  progress: (written, perfect) => `${written} ditulis · ${perfect} sempurna`,
+  playAudio: 'Putar audio',
+  loading: 'Memuat goresan…',
+  unavailable: 'Data goresan tidak tersedia',
+  skipArrow: 'Lewati →',
+  perfectBadge: 'Sempurna!',
+  doneBadge: 'Selesai',
+  clear: 'Hapus',
+  ghostOn: 'Bayangan aktif',
+  ghostOff: 'Bayangan mati',
+  skip: 'Lewati',
+  strokeHint: 'Mulai tiap goresan dari titik yang berkedip · arah itu penting',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 const VIEW = 109 // KanjiVG coordinate space
 
@@ -43,6 +90,8 @@ const polyline = (pts: Pt[]) => pts.map((p) => `${p.x},${p.y}`).join(' ')
 export default function WritingPage() {
   const fullPool = usePracticePool()
   const recordPractice = useStore((s) => s.recordPractice)
+  const lang = useLang()
+  const t = STR[lang]
 
   // Only single glyphs are drawable (yōon digraphs are their component glyphs).
   const pool = useMemo(() => fullPool.filter((e) => [...e.kana].length === 1), [fullPool])
@@ -219,9 +268,7 @@ export default function WritingPage() {
     return (
       <div className="mx-auto max-w-md">
         <PageHeader title="Writing" jp="書く" backTo="/practice" />
-        <EmptyState title="No kana in your pool">
-          Enable at least one kana group in Settings first.
-        </EmptyState>
+        <EmptyState title={t.emptyTitle}>{t.emptyBody}</EmptyState>
       </div>
     )
   }
@@ -232,7 +279,7 @@ export default function WritingPage() {
         <PageHeader
           title="Writing"
           jp="書く"
-          subtitle="Draw each stroke in the right order and direction"
+          subtitle={t.idleSubtitle}
           backTo="/practice"
         />
         <motion.div
@@ -243,18 +290,16 @@ export default function WritingPage() {
           <span aria-hidden className="font-kana text-6xl">
             筆
           </span>
-          <h2 className="mt-5 text-xl font-semibold">Learn by writing</h2>
+          <h2 className="mt-5 text-xl font-semibold">{t.idleTitle}</h2>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
-            You hear the sound and see the rōmaji — draw the character stroke by stroke with your
-            finger. Wrong strokes shake; two misses reveal a hint. {pool.length} characters in your
-            pool.
+            {t.idleBody(pool.length)}
           </p>
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={start}
             className="mt-8 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface"
           >
-            Start writing
+            {t.startWriting}
           </motion.button>
         </motion.div>
       </div>
@@ -270,7 +315,7 @@ export default function WritingPage() {
       <PageHeader
         title="Writing"
         jp="書く"
-        subtitle={`${completed} written · ${perfect} perfect`}
+        subtitle={t.progress(completed, perfect)}
         backTo="/practice"
       />
 
@@ -285,10 +330,14 @@ export default function WritingPage() {
           {/* Prompt */}
           <div className="mb-4 flex items-center justify-center gap-3">
             <span className="text-3xl font-semibold tracking-wide">{entry.romaji}</span>
-            {entry.meaning && <span className="text-sm text-muted">{entry.meaning}</span>}
+            {entry.meaning && (
+              <span className="text-sm text-muted">
+                {localizedMeaning(entry.id, entry.meaning, lang)}
+              </span>
+            )}
             <button
               onClick={() => speak(entry.kana, useStore.getState().settings.audio)}
-              aria-label="Play audio"
+              aria-label={t.playAudio}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-hairline text-muted transition-colors hover:text-sumi"
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -404,14 +453,14 @@ export default function WritingPage() {
 
             {!strokes && !loadFailed && (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-muted">
-                Loading strokes…
+                {t.loading}
               </div>
             )}
             {loadFailed && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted">
-                Stroke data unavailable
+                {t.unavailable}
                 <button onClick={skip} className="font-medium text-vermilion">
-                  Skip →
+                  {t.skipArrow}
                 </button>
               </div>
             )}
@@ -421,7 +470,7 @@ export default function WritingPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="absolute right-3 top-3 rounded-full bg-matcha/15 px-2.5 py-1 text-xs font-semibold text-matcha"
               >
-                {mistakesRef.current === 0 ? 'Perfect!' : 'Done'}
+                {mistakesRef.current === 0 ? t.perfectBadge : t.doneBadge}
               </motion.div>
             )}
           </motion.div>
@@ -448,7 +497,7 @@ export default function WritingPage() {
               onClick={restartGlyph}
               className="min-h-[44px] rounded-xl border border-hairline px-4 text-sm font-medium text-muted transition-colors hover:text-sumi"
             >
-              Clear
+              {t.clear}
             </button>
             <button
               onClick={() => setGhost((g) => !g)}
@@ -459,18 +508,16 @@ export default function WritingPage() {
                   : 'border-hairline text-muted hover:text-sumi'
               }`}
             >
-              Ghost {ghost ? 'on' : 'off'}
+              {ghost ? t.ghostOn : t.ghostOff}
             </button>
             <button
               onClick={skip}
               className="min-h-[44px] rounded-xl border border-hairline px-4 text-sm font-medium text-muted transition-colors hover:text-sumi"
             >
-              Skip
+              {t.skip}
             </button>
           </div>
-          <p className="mt-3 text-center text-xs text-muted">
-            Start each stroke at the pulsing dot · direction matters
-          </p>
+          <p className="mt-3 text-center text-xs text-muted">{t.strokeHint}</p>
         </motion.div>
       </AnimatePresence>
     </div>

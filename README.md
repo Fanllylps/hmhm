@@ -9,6 +9,7 @@ An interactive web app for learning Japanese **Hiragana & Katakana**, built arou
 - **9 study modes** — Review (SRS flashcards with 3D flip & interval previews), Quiz, Typing, Matching, Time Attack, Kana Rain (arcade), Memory Flip, Listening, Word Mode
 - **Progress tracking** — dashboard with due/new/streak/mastered/accuracy, GitHub-style activity heatmap, reviews-per-day chart, and a full kana chart color-coded by card maturity (mature kana get a vermilion hanko seal ○)
 - **Audio** — native `speechSynthesis` with a `ja-JP` voice
+- **Bilingual UI** — full English & Indonesian localization (auto-detected from the device, switchable in Settings), including Indonesian meanings for all words and kanji
 - **Settings** — script & group toggles, daily new-card limit, lenient romaji input (shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…), full JSON export/import of progress
 - **Design** — calm Japanese minimalism on washi cream, Zen Maru Gothic kana, Framer Motion micro-interactions, fully responsive & one-hand friendly on mobile, keyboard shortcuts on desktop (Space = flip, 1–4 = rate), respects `prefers-reduced-motion`
 - **Dark mode** — a warm "sumi night" variant of the cream theme; follows the system setting or toggle it manually in Settings

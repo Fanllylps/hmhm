@@ -7,8 +7,49 @@ import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import { shuffle, usePracticePool } from '../lib/practice'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  subtitle: 'Pair each kana with its romaji',
+  bestChip: (time: string) => `Best ${time}`,
+  time: 'Time',
+  moves: 'Moves',
+  pairs: 'Pairs',
+  boardCleared: 'Board cleared',
+  perfectRound: 'Perfect round — every move was a match.',
+  clearedIn: (moves: number, pairs: number) => `${moves} moves to clear ${pairs} pairs.`,
+  newBestTime: 'New best time',
+  best: 'Best',
+  playAgain: 'Play again',
+  backToPractice: 'Back to practice',
+  enterToPlayAgain: 'Enter to play again',
+  ariaKana: (kana: string) => `Kana ${kana}`,
+  ariaRomaji: (romaji: string) => `Romaji ${romaji}`,
+  tapHint: 'Tap a kana, then its romaji. The timer starts on your first tap.',
+}
+
+const ID: typeof EN = {
+  subtitle: 'Pasangkan tiap kana dengan romajinya',
+  bestChip: (time) => `Terbaik ${time}`,
+  time: 'Waktu',
+  moves: 'Langkah',
+  pairs: 'Pasangan',
+  boardCleared: 'Papan selesai',
+  perfectRound: 'Ronde sempurna — semua langkah cocok.',
+  clearedIn: (moves, pairs) => `${moves} langkah untuk menyelesaikan ${pairs} pasangan.`,
+  newBestTime: 'Rekor waktu baru',
+  best: 'Terbaik',
+  playAgain: 'Main lagi',
+  backToPractice: 'Kembali ke latihan',
+  enterToPlayAgain: 'Tekan Enter untuk main lagi',
+  ariaKana: (kana) => `Kana ${kana}`,
+  ariaRomaji: (romaji) => `Romaji ${romaji}`,
+  tapHint: 'Ketuk satu kana, lalu romajinya. Timer mulai dari ketukan pertamamu.',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 const ROUND_SIZE = 6
 /** Let the final pair's pop animation play before swapping to the summary. */
@@ -69,6 +110,8 @@ function CompletionCard({
   onPlayAgain: () => void
 }) {
   const best = useStore((s) => s.best.matchingSec)
+  const lang = useLang()
+  const t = STR[lang]
   const perfect = moves === pairs
   return (
     <div className="mx-auto max-w-md text-center">
@@ -78,20 +121,18 @@ function CompletionCard({
         animate={{ opacity: 1, scale: 1 }}
         className="rounded-2xl border border-hairline bg-surface p-8 shadow-soft"
       >
-        <p className="text-xs font-medium uppercase tracking-widest text-muted">Board cleared</p>
+        <p className="text-xs font-medium uppercase tracking-widest text-muted">{t.boardCleared}</p>
         <div className="mt-3 text-6xl font-semibold tabular-nums tracking-tight">
           {formatClock(seconds)}
         </div>
         <p className="mt-2 text-sm text-muted">
-          {perfect
-            ? 'Perfect round — every move was a match.'
-            : `${moves} moves to clear ${pairs} pairs.`}
+          {perfect ? t.perfectRound : t.clearedIn(moves, pairs)}
         </p>
 
         {newBest && (
           <div className="mt-5 flex items-center justify-center gap-2 text-sm font-medium text-vermilion">
             <Hanko char="速" size={30} />
-            New best time
+            {t.newBestTime}
           </div>
         )}
 
@@ -100,15 +141,15 @@ function CompletionCard({
             <div className="font-semibold tabular-nums">
               {best !== null ? formatClock(best) : '—'}
             </div>
-            <div className="mt-0.5 text-xs text-muted">Best</div>
+            <div className="mt-0.5 text-xs text-muted">{t.best}</div>
           </div>
           <div className="rounded-xl bg-washi px-2 py-3">
             <div className="font-semibold tabular-nums">{moves}</div>
-            <div className="mt-0.5 text-xs text-muted">Moves</div>
+            <div className="mt-0.5 text-xs text-muted">{t.moves}</div>
           </div>
           <div className="rounded-xl bg-washi px-2 py-3">
             <div className="font-semibold tabular-nums">{pairs}</div>
-            <div className="mt-0.5 text-xs text-muted">Pairs</div>
+            <div className="mt-0.5 text-xs text-muted">{t.pairs}</div>
           </div>
         </div>
 
@@ -124,16 +165,16 @@ function CompletionCard({
             onClick={onPlayAgain}
             className="rounded-2xl bg-vermilion px-6 py-3 font-medium text-surface"
           >
-            Play again
+            {t.playAgain}
           </motion.button>
           <Link
             to="/practice"
             className="rounded-2xl border border-hairline px-6 py-3 font-medium text-muted transition-colors hover:text-sumi"
           >
-            Back to practice
+            {t.backToPractice}
           </Link>
         </div>
-        <p className="mt-4 hidden text-xs text-muted sm:block">Enter to play again</p>
+        <p className="mt-4 hidden text-xs text-muted sm:block">{t.enterToPlayAgain}</p>
       </motion.div>
     </div>
   )
@@ -146,6 +187,8 @@ export default function MatchingPage() {
   const recordPractice = useStore((s) => s.recordPractice)
   const submitMatchingTime = useStore((s) => s.submitMatchingTime)
   const best = useStore((s) => s.best.matchingSec)
+  const lang = useLang()
+  const t = STR[lang]
 
   const [roundId, setRoundId] = useState(0)
   const [round, setRound] = useState<KanaEntry[] | null>(null)
@@ -279,12 +322,12 @@ export default function MatchingPage() {
       <PageHeader
         title="Matching"
         jp="対"
-        subtitle="Pair each kana with its romaji"
+        subtitle={t.subtitle}
         backTo="/practice"
         actions={
           best !== null ? (
             <div className="rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-sm tabular-nums text-muted shadow-soft">
-              Best {formatClock(best)}
+              {t.bestChip(formatClock(best))}
             </div>
           ) : undefined
         }
@@ -297,18 +340,18 @@ export default function MatchingPage() {
           >
             {formatClock(displaySec)}
           </div>
-          <div className="text-[11px] uppercase tracking-widest text-muted">Time</div>
+          <div className="text-[11px] uppercase tracking-widest text-muted">{t.time}</div>
         </div>
         <div className="text-center">
           <div className="text-xl font-semibold tabular-nums">{moves}</div>
-          <div className="text-[11px] uppercase tracking-widest text-muted">Moves</div>
+          <div className="text-[11px] uppercase tracking-widest text-muted">{t.moves}</div>
         </div>
         <div className="text-right">
           <div className="text-xl font-semibold tabular-nums">
             {cleared.size}
             <span className="text-muted">/{round.length}</span>
           </div>
-          <div className="text-[11px] uppercase tracking-widest text-muted">Pairs</div>
+          <div className="text-[11px] uppercase tracking-widest text-muted">{t.pairs}</div>
         </div>
       </div>
 
@@ -337,7 +380,7 @@ export default function MatchingPage() {
                 disabled={isCleared}
                 aria-pressed={isSelected}
                 aria-label={
-                  tile.kind === 'kana' ? `Kana ${tile.entry.kana}` : `Romaji ${tile.entry.romaji}`
+                  tile.kind === 'kana' ? t.ariaKana(tile.entry.kana) : t.ariaRomaji(tile.entry.romaji)
                 }
                 whileTap={isCleared ? undefined : { scale: 0.96 }}
                 animate={
@@ -384,7 +427,7 @@ export default function MatchingPage() {
             exit={{ opacity: 0 }}
             className="mt-5 text-center text-sm text-muted"
           >
-            Tap a kana, then its romaji. The timer starts on your first tap.
+            {t.tapHint}
           </motion.p>
         )}
       </AnimatePresence>

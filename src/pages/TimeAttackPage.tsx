@@ -7,8 +7,61 @@ import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import { pickChoices, usePracticePool } from '../lib/practice'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  title: 'Time Attack',
+  idleSubtitle: 'Sixty seconds, as many kana as you can.',
+  beatClock: 'Beat the clock',
+  howTo:
+    'A kana appears — tap the matching rōmaji. Each correct answer scores a point. Misses flash the right answer and bring that kana back sooner in your reviews.',
+  personalBest: 'Personal best',
+  noBest: 'No best score yet — set the first one.',
+  start: 'Start',
+  idleHint: 'Enter to start · answer with 1–4',
+  secondsLeft: (n: number) => `${n} seconds left`,
+  score: 'Score',
+  announceCorrect: (romaji: string) => `Correct — ${romaji}`,
+  announceWrong: (kana: string, romaji: string) => `Wrong — ${kana} is ${romaji}`,
+  answerHint: 'Answer with 1–4',
+  newRecord: 'New record',
+  readIn: (n: number) => `kana read in ${n} seconds`,
+  answered: 'Answered',
+  accuracy: 'Accuracy',
+  best: 'Best',
+  playAgain: 'Play again',
+  backToPractice: 'Back to practice',
+  overHint: 'Enter to play again',
+}
+
+const ID: typeof EN = {
+  title: 'Time Attack',
+  idleSubtitle: 'Enam puluh detik, sebanyak mungkin kana.',
+  beatClock: 'Kalahkan waktu',
+  howTo:
+    'Sebuah kana muncul — ketuk rōmaji yang cocok. Tiap jawaban benar dapat satu poin. Kalau salah, jawaban yang benar berkedip sebentar dan kana itu muncul lagi lebih cepat di review-mu.',
+  personalBest: 'Rekor pribadi',
+  noBest: 'Belum ada skor terbaik — cetak yang pertama.',
+  start: 'Mulai',
+  idleHint: 'Enter untuk mulai · jawab dengan 1–4',
+  secondsLeft: (n: number) => `Sisa ${n} detik`,
+  score: 'Skor',
+  announceCorrect: (romaji: string) => `Benar — ${romaji}`,
+  announceWrong: (kana: string, romaji: string) => `Salah — ${kana} itu ${romaji}`,
+  answerHint: 'Jawab dengan 1–4',
+  newRecord: 'Rekor baru',
+  readIn: (n: number) => `kana terbaca dalam ${n} detik`,
+  answered: 'Dijawab',
+  accuracy: 'Akurasi',
+  best: 'Terbaik',
+  playAgain: 'Main lagi',
+  backToPractice: 'Kembali ke latihan',
+  overHint: 'Enter untuk main lagi',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 const GAME_SECONDS = 60
 /** Timer turns vermilion and pulses at/below this many seconds. */
@@ -39,6 +92,8 @@ export default function TimeAttackPage() {
   const best = useStore((s) => s.best.timeAttack)
   const recordPractice = useStore((s) => s.recordPractice)
   const submitScore = useStore((s) => s.submitScore)
+  const lang = useLang()
+  const t = STR[lang]
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [timeLeft, setTimeLeft] = useState(GAME_SECONDS)
@@ -115,11 +170,11 @@ export default function TimeAttackPage() {
       setAnswered((n) => n + 1)
       if (correct) {
         setScore((s) => s + 1)
-        setAnnounce(`Correct — ${question.entry.romaji}`)
+        setAnnounce(t.announceCorrect(question.entry.romaji))
         advance()
       } else {
         // Flash the right answer briefly, then keep moving.
-        setAnnounce(`Wrong — ${question.entry.kana} is ${question.entry.romaji}`)
+        setAnnounce(t.announceWrong(question.entry.kana, question.entry.romaji))
         setWrongPick(choice.id)
         flashTimer.current = window.setTimeout(() => {
           flashTimer.current = null
@@ -127,7 +182,7 @@ export default function TimeAttackPage() {
         }, WRONG_FLASH_MS)
       }
     },
-    [phase, question, wrongPick, recordPractice, advance],
+    [phase, question, wrongPick, recordPractice, advance, t],
   )
 
   useKeyDown(
@@ -157,7 +212,7 @@ export default function TimeAttackPage() {
     return (
       <div className="mx-auto max-w-md">
         {newRecord && <Confetti />}
-        <PageHeader title="Time Attack" jp="秒" backTo="/practice" />
+        <PageHeader title={t.title} jp="秒" backTo="/practice" />
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -167,7 +222,7 @@ export default function TimeAttackPage() {
             <div className="flex flex-col items-center gap-2">
               <Hanko char="新" size={52} />
               <span className="text-xs font-semibold uppercase tracking-widest text-vermilion">
-                New record
+                {t.newRecord}
               </span>
             </div>
           ) : (
@@ -176,23 +231,21 @@ export default function TimeAttackPage() {
             </span>
           )}
           <div className="mt-4 text-6xl font-semibold tabular-nums tracking-tight">{score}</div>
-          <p className="mt-1 text-sm text-muted">
-            kana read in {GAME_SECONDS} seconds
-          </p>
+          <p className="mt-1 text-sm text-muted">{t.readIn(GAME_SECONDS)}</p>
           <div className="mt-6 grid grid-cols-3 gap-2 text-center text-sm">
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold tabular-nums">{answered}</div>
-              <div className="mt-0.5 text-xs text-muted">Answered</div>
+              <div className="mt-0.5 text-xs text-muted">{t.answered}</div>
             </div>
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold tabular-nums">{accuracy}%</div>
-              <div className="mt-0.5 text-xs text-muted">Accuracy</div>
+              <div className="mt-0.5 text-xs text-muted">{t.accuracy}</div>
             </div>
             <div className="rounded-xl bg-washi px-2 py-3">
               <div className={`font-semibold tabular-nums ${newRecord ? 'text-vermilion' : ''}`}>
                 {best}
               </div>
-              <div className="mt-0.5 text-xs text-muted">Best</div>
+              <div className="mt-0.5 text-xs text-muted">{t.best}</div>
             </div>
           </div>
           <div className="mt-8 flex flex-col gap-2">
@@ -201,16 +254,16 @@ export default function TimeAttackPage() {
               onClick={start}
               className="rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface"
             >
-              Play again
+              {t.playAgain}
             </motion.button>
             <Link
               to="/practice"
               className="rounded-2xl border border-hairline px-6 py-3 font-medium text-muted transition-colors hover:text-sumi"
             >
-              Back to practice
+              {t.backToPractice}
             </Link>
           </div>
-          <p className="mt-4 hidden text-xs text-muted sm:block">Enter to play again</p>
+          <p className="mt-4 hidden text-xs text-muted sm:block">{t.overHint}</p>
         </motion.div>
       </div>
     )
@@ -222,12 +275,12 @@ export default function TimeAttackPage() {
     const flashing = wrongPick !== null
     return (
       <div className="mx-auto max-w-xl">
-        <PageHeader title="Time Attack" jp="秒" backTo="/practice" />
+        <PageHeader title={t.title} jp="秒" backTo="/practice" />
 
         <div className="flex items-end justify-between">
           <motion.div
             role="timer"
-            aria-label={`${timeLeft} seconds left`}
+            aria-label={t.secondsLeft(timeLeft)}
             animate={{ scale: urgent ? [1, 1.06, 1] : 1 }}
             transition={
               urgent
@@ -241,7 +294,9 @@ export default function TimeAttackPage() {
             {formatClock(timeLeft)}
           </motion.div>
           <div className="text-right">
-            <div className="text-xs font-medium uppercase tracking-widest text-muted">Score</div>
+            <div className="text-xs font-medium uppercase tracking-widest text-muted">
+              {t.score}
+            </div>
             <div className="h-9 overflow-hidden text-3xl font-semibold tabular-nums leading-9">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.span
@@ -328,9 +383,7 @@ export default function TimeAttackPage() {
           })}
         </div>
 
-        <p className="mt-4 hidden text-center text-xs text-muted sm:block">
-          Answer with 1–4
-        </p>
+        <p className="mt-4 hidden text-center text-xs text-muted sm:block">{t.answerHint}</p>
       </div>
     )
   }
@@ -338,12 +391,7 @@ export default function TimeAttackPage() {
   // ---------- Idle ----------
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader
-        title="Time Attack"
-        jp="秒"
-        backTo="/practice"
-        subtitle="Sixty seconds, as many kana as you can."
-      />
+      <PageHeader title={t.title} jp="秒" backTo="/practice" subtitle={t.idleSubtitle} />
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -352,22 +400,19 @@ export default function TimeAttackPage() {
         <span aria-hidden className="font-kana text-7xl leading-none">
           速
         </span>
-        <h2 className="mt-5 text-xl font-semibold">Beat the clock</h2>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
-          A kana appears — tap the matching rōmaji. Each correct answer scores a point. Misses
-          flash the right answer and bring that kana back sooner in your reviews.
-        </p>
+        <h2 className="mt-5 text-xl font-semibold">{t.beatClock}</h2>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">{t.howTo}</p>
         <div className="mt-6 flex min-h-[32px] items-center justify-center gap-2.5 text-sm">
           {best > 0 ? (
             <>
               <Hanko char="最" size={30} animate={false} />
               <span className="text-muted">
-                Personal best{' '}
+                {t.personalBest}{' '}
                 <span className="font-semibold tabular-nums text-sumi">{best}</span>
               </span>
             </>
           ) : (
-            <span className="text-muted">No best score yet — set the first one.</span>
+            <span className="text-muted">{t.noBest}</span>
           )}
         </div>
         <motion.button
@@ -375,9 +420,9 @@ export default function TimeAttackPage() {
           onClick={start}
           className="mt-8 w-full rounded-2xl bg-vermilion py-4 text-lg font-medium text-surface"
         >
-          Start
+          {t.start}
         </motion.button>
-        <p className="mt-4 hidden text-xs text-muted sm:block">Enter to start · answer with 1–4</p>
+        <p className="mt-4 hidden text-xs text-muted sm:block">{t.idleHint}</p>
       </motion.div>
     </div>
   )

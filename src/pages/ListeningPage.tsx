@@ -4,8 +4,57 @@ import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { hasJapaneseVoice, speak, speechAvailable } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import { pickChoices, usePracticePool } from '../lib/practice'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  title: 'Listening',
+  idleSubtitle: 'Hear a kana, pick the one you heard',
+  trainEar: 'Train your ear',
+  intro: (n: number) =>
+    `Each round speaks one of the ${n} kana in your pool. Misses pull that card back into review sooner.`,
+  startBtn: 'Start listening',
+  noSpeech:
+    'This browser has no speech support — Listening needs a Japanese text-to-speech voice. Try Chrome, Edge or Safari.',
+  noVoice:
+    'No Japanese voice was found on this device, so audio may be silent or mispronounced. Install a Japanese TTS voice (or try another browser) for the real experience.',
+  soundOn: 'Make sure your device sound is on',
+  poolSubtitle: (n: number) => `${n} kana in the pool`,
+  streak: 'Streak',
+  streakBest: (best: number) => `Streak · best ${best}`,
+  accuracy: 'Accuracy',
+  answered: 'Answered',
+  replayAria: 'Replay audio',
+  tapAgain: 'Tap to hear again',
+  spaceKey: 'Space',
+  answerHint: '1–4 to answer · Space to replay',
+}
+
+const ID: typeof EN = {
+  title: 'Listening',
+  idleSubtitle: 'Dengar sebuah kana, pilih yang kamu dengar',
+  trainEar: 'Latih telingamu',
+  intro: (n: number) =>
+    `Tiap ronde mengucapkan salah satu dari ${n} kana di pool-mu. Kalau salah, kartu itu kembali ke review lebih cepat.`,
+  startBtn: 'Mulai mendengarkan',
+  noSpeech:
+    'Browser ini tidak punya dukungan text-to-speech — Listening butuh suara text-to-speech bahasa Jepang. Coba Chrome, Edge, atau Safari.',
+  noVoice:
+    'Suara bahasa Jepang tidak ditemukan di perangkat ini, jadi audio mungkin tidak berbunyi atau salah ucap. Pasang suara TTS bahasa Jepang (atau coba browser lain) untuk pengalaman yang sesungguhnya.',
+  soundOn: 'Pastikan suara perangkatmu menyala',
+  poolSubtitle: (n: number) => `${n} kana di pool`,
+  streak: 'Runtutan',
+  streakBest: (best: number) => `Runtutan · terbaik ${best}`,
+  accuracy: 'Akurasi',
+  answered: 'Dijawab',
+  replayAria: 'Putar ulang audio',
+  tapAgain: 'Ketuk untuk dengar lagi',
+  spaceKey: 'Spasi',
+  answerHint: 'Jawab dengan 1–4 · Spasi untuk putar ulang',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 /** Pause on the feedback state before the next kana is spoken. */
 const ADVANCE_MS = 1100
@@ -56,6 +105,8 @@ export default function ListeningPage() {
     return kanaOnly.length > 0 ? kanaOnly : rawPool
   }, [rawPool])
   const recordPractice = useStore((s) => s.recordPractice)
+  const lang = useLang()
+  const t = STR[lang]
 
   const [phase, setPhase] = useState<'idle' | 'playing'>('idle')
   const [round, setRound] = useState<Round | null>(null)
@@ -178,12 +229,7 @@ export default function ListeningPage() {
   if (phase === 'idle') {
     return (
       <div className="mx-auto max-w-xl">
-        <PageHeader
-          title="Listening"
-          jp="聴く"
-          subtitle="Hear a kana, pick the one you heard"
-          backTo="/practice"
-        />
+        <PageHeader title={t.title} jp="聴く" subtitle={t.idleSubtitle} backTo="/practice" />
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -192,33 +238,28 @@ export default function ListeningPage() {
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-washi text-sumi">
             <SpeakerIcon size={36} />
           </div>
-          <h2 className="mt-6 text-xl font-semibold">Train your ear</h2>
-          <p className="mt-2 max-w-sm text-sm text-muted">
-            Each round speaks one of the {livePool.length} kana in your pool. Misses pull that card
-            back into review sooner.
-          </p>
+          <h2 className="mt-6 text-xl font-semibold">{t.trainEar}</h2>
+          <p className="mt-2 max-w-sm text-sm text-muted">{t.intro(livePool.length)}</p>
           <motion.button
             whileTap={tts === 'unsupported' ? undefined : { scale: 0.98 }}
             onClick={start}
             disabled={tts === 'unsupported'}
             className="mt-8 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Start listening
+            {t.startBtn}
           </motion.button>
           {tts === 'unsupported' ? (
             <p className="mt-4 max-w-sm text-xs font-medium text-vermilion" role="alert">
-              This browser has no speech support — Listening needs a Japanese text-to-speech
-              voice. Try Chrome, Edge or Safari.
+              {t.noSpeech}
             </p>
           ) : tts === 'no-voice' ? (
             <p className="mt-4 max-w-sm text-xs font-medium text-vermilion" role="alert">
-              No Japanese voice was found on this device, so audio may be silent or mispronounced.
-              Install a Japanese TTS voice (or try another browser) for the real experience.
+              {t.noVoice}
             </p>
           ) : (
             <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted">
               <SpeakerIcon size={13} />
-              Make sure your device sound is on
+              {t.soundOn}
             </p>
           )}
         </motion.div>
@@ -231,20 +272,20 @@ export default function ListeningPage() {
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader
-        title="Listening"
+        title={t.title}
         jp="聴く"
-        subtitle={`${poolRef.current.length} kana in the pool`}
+        subtitle={t.poolSubtitle(poolRef.current.length)}
         backTo="/practice"
       />
 
       <div className="mb-5 grid grid-cols-3 gap-2">
         <StatPill
           value={streak > 0 ? `🔥 ${streak}` : '0'}
-          label={bestStreak > 0 ? `Streak · best ${bestStreak}` : 'Streak'}
+          label={bestStreak > 0 ? t.streakBest(bestStreak) : t.streak}
           accent={streak > 0}
         />
-        <StatPill value={accuracy === null ? '—' : `${accuracy}%`} label="Accuracy" />
-        <StatPill value={`${totalCount}`} label="Answered" />
+        <StatPill value={accuracy === null ? '—' : `${accuracy}%`} label={t.accuracy} />
+        <StatPill value={`${totalCount}`} label={t.answered} />
       </div>
 
       <AnimatePresence mode="popLayout" initial={false}>
@@ -259,7 +300,7 @@ export default function ListeningPage() {
             <motion.button
               whileTap={{ scale: 0.94 }}
               onClick={() => play(round.entry.kana)}
-              aria-label="Replay audio"
+              aria-label={t.replayAria}
               className="relative flex h-24 w-24 items-center justify-center rounded-full bg-sumi text-surface shadow-lift"
             >
               <motion.span
@@ -273,7 +314,8 @@ export default function ListeningPage() {
               <SpeakerIcon size={40} />
             </motion.button>
             <p className="mt-3 text-xs text-muted">
-              Tap to hear again<span className="hidden sm:inline"> · Space</span>
+              {t.tapAgain}
+              <span className="hidden sm:inline"> · {t.spaceKey}</span>
             </p>
             <div className="mt-1 flex h-9 items-center" aria-live="polite">
               <AnimatePresence>
@@ -334,9 +376,7 @@ export default function ListeningPage() {
         </motion.div>
       </AnimatePresence>
 
-      <p className="mt-5 hidden text-center text-xs text-muted sm:block">
-        1–4 to answer · Space to replay
-      </p>
+      <p className="mt-5 hidden text-center text-xs text-muted sm:block">{t.answerHint}</p>
     </div>
   )
 }

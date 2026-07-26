@@ -9,6 +9,7 @@ import { STUDY_BY_ID } from '../data/study'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { haptic } from '../lib/haptics'
+import { localizedMeaning, useLang } from '../lib/i18n'
 import {
   buildQueue,
   createCard,
@@ -24,7 +25,56 @@ import {
   useStore,
   XP_REVIEW,
   XP_REVIEW_AGAIN,
+  type Lang,
 } from '../stores/store'
+
+const EN = {
+  title: 'Review',
+  left: (n: number) => `${n} left in this session`,
+  newBadge: 'New',
+  showAnswer: 'Show answer',
+  spaceKey: 'Space',
+  hint: 'Space to flip · 1–4 to rate',
+  playAudio: 'Play audio',
+  ratings: { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' },
+  shortcut: (n: number) => `shortcut ${n}`,
+  complete: 'Session complete',
+  reviewed: (n: number) => `${n} card${n === 1 ? '' : 's'} reviewed`,
+  correct: (p: number) => `${p}% correct`,
+  graduated: (n: number) => `${n} kana graduated to mature`,
+  keepGoing: 'Keep going — play a game',
+  backHome: 'Back home',
+  caughtUp: 'All caught up',
+  nextIn: (dur: string) =>
+    `Next review in ${dur}. Until then, try a practice game — wrong answers bring cards back sooner.`,
+  noneScheduled: 'No cards scheduled yet. Start a session tomorrow, or play a practice game.',
+  openPractice: 'Open practice modes →',
+}
+
+const ID: typeof EN = {
+  title: 'Review',
+  left: (n: number) => `${n} tersisa di sesi ini`,
+  newBadge: 'BARU',
+  showAnswer: 'Lihat jawaban',
+  spaceKey: 'Spasi',
+  hint: 'Spasi untuk membalik · 1–4 untuk menilai',
+  playAudio: 'Putar audio',
+  ratings: { again: 'Ulangi', hard: 'Sulit', good: 'Bagus', easy: 'Mudah' },
+  shortcut: (n: number) => `pintasan ${n}`,
+  complete: 'Sesi selesai',
+  reviewed: (n: number) => `${n} kartu direview`,
+  correct: (p: number) => `${p}% benar`,
+  graduated: (n: number) => `${n} kana lulus jadi mature`,
+  keepGoing: 'Lanjut — main game',
+  backHome: 'Kembali ke beranda',
+  caughtUp: 'Semua sudah selesai',
+  nextIn: (dur: string) =>
+    `Review berikutnya dalam ${dur}. Sambil menunggu, coba game latihan — jawaban salah bikin kartu balik lebih cepat.`,
+  noneScheduled: 'Belum ada kartu terjadwal. Mulai sesi besok, atau main game latihan dulu.',
+  openPractice: 'Buka mode latihan →',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 /** Cards scheduled within this window stay in the current session queue. */
 const SESSION_HORIZON_MS = 20 * 60_000
@@ -35,12 +85,6 @@ interface QueueItem {
 }
 
 const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy']
-const RATING_LABELS: Record<Rating, string> = {
-  again: 'Again',
-  hard: 'Hard',
-  good: 'Good',
-  easy: 'Easy',
-}
 const RATING_STYLES: Record<Rating, string> = {
   again: 'border-vermilion/40 text-vermilion hover:bg-vermilion/5',
   hard: 'border-hairline text-muted hover:bg-washi',
@@ -55,6 +99,8 @@ function CompletionScreen({
   counts: Record<Rating, number>
   matured: string[]
 }) {
+  const lang = useLang()
+  const t = STR[lang]
   const total = RATINGS.reduce((sum, r) => sum + counts[r], 0)
   const accuracy = total === 0 ? 0 : Math.round(((total - counts.again) / total) * 100)
   const xpEarned = (total - counts.again) * XP_REVIEW + counts.again * XP_REVIEW_AGAIN
@@ -69,23 +115,23 @@ function CompletionScreen({
         <span aria-hidden className="font-kana text-5xl">
           🎉
         </span>
-        <h2 className="mt-4 text-2xl font-semibold">Session complete</h2>
+        <h2 className="mt-4 text-2xl font-semibold">{t.complete}</h2>
         <p className="mt-1 text-sm text-muted">
-          {total} card{total === 1 ? '' : 's'} reviewed · {accuracy}% correct ·{' '}
+          {t.reviewed(total)} · {t.correct(accuracy)} ·{' '}
           <span className="font-medium text-vermilion">+{xpEarned} XP</span>
         </p>
         <div className="mt-6 grid grid-cols-4 gap-2 text-center text-sm">
           {RATINGS.map((r) => (
             <div key={r} className="rounded-xl bg-washi px-2 py-3">
               <div className="font-semibold">{counts[r]}</div>
-              <div className="mt-0.5 text-xs text-muted">{RATING_LABELS[r]}</div>
+              <div className="mt-0.5 text-xs text-muted">{t.ratings[r]}</div>
             </div>
           ))}
         </div>
         {matured.length > 0 && (
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
             <Hanko char="済" size={28} />
-            {matured.length} kana graduated to mature
+            {t.graduated(matured.length)}
           </div>
         )}
         <div className="mt-8 flex flex-col gap-2">
@@ -93,13 +139,13 @@ function CompletionScreen({
             to="/practice"
             className="rounded-2xl bg-vermilion px-6 py-3 font-medium text-surface transition-transform active:scale-[0.98]"
           >
-            Keep going — play a game
+            {t.keepGoing}
           </Link>
           <Link
             to="/"
             className="rounded-2xl border border-hairline px-6 py-3 font-medium text-muted transition-colors hover:text-sumi"
           >
-            Back home
+            {t.backHome}
           </Link>
         </div>
       </motion.div>
@@ -110,18 +156,20 @@ function CompletionScreen({
 function NothingDue() {
   const state = useStore()
   const stats = computeStats(state)
+  const lang = useLang()
+  const t = STR[lang]
   return (
     <div className="mx-auto max-w-md">
-      <PageHeader title="Review" jp="復習" />
-      <EmptyState kana="休" title="All caught up">
+      <PageHeader title={t.title} jp="復習" />
+      <EmptyState kana="休" title={t.caughtUp}>
         {stats.nextDueAt ? (
-          <>Next review in {formatDuration(stats.nextDueAt - Date.now())}. Until then, try a practice game — wrong answers bring cards back sooner.</>
+          <>{t.nextIn(formatDuration(stats.nextDueAt - Date.now()))}</>
         ) : (
-          <>No cards scheduled yet. Start a session tomorrow, or play a practice game.</>
+          <>{t.noneScheduled}</>
         )}
         <div className="mt-4">
           <Link to="/practice" className="font-medium text-vermilion">
-            Open practice modes →
+            {t.openPractice}
           </Link>
         </div>
       </EmptyState>
@@ -131,6 +179,8 @@ function NothingDue() {
 
 export default function ReviewPage() {
   const rateCard = useStore((s) => s.rateCard)
+  const lang = useLang()
+  const t = STR[lang]
   const [queue, setQueue] = useState<QueueItem[] | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [counts, setCounts] = useState<Record<Rating, number>>({
@@ -243,9 +293,9 @@ export default function ReviewPage() {
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader
-        title="Review"
+        title={t.title}
         jp="復習"
-        subtitle={`${queue.length} left in this session`}
+        subtitle={t.left(queue.length)}
       />
 
       <div
@@ -276,14 +326,14 @@ export default function ReviewPage() {
               {/* front */}
               <button
                 onClick={reveal}
-                aria-label={revealed ? undefined : 'Show answer'}
+                aria-label={revealed ? undefined : t.showAnswer}
                 aria-hidden={revealed}
                 tabIndex={revealed ? -1 : 0}
                 className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-hairline bg-surface shadow-soft [backface-visibility:hidden]"
               >
                 {isNewCard && (
                   <span className="absolute left-4 top-4 rounded-full bg-vermilion/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-vermilion">
-                    New
+                    {t.newBadge}
                   </span>
                 )}
                 <span className="font-kana text-[7rem] leading-none sm:text-[9rem]">{entry.kana}</span>
@@ -300,7 +350,9 @@ export default function ReviewPage() {
                 <span className="font-kana text-6xl sm:text-7xl">{entry.kana}</span>
                 <span className="mt-4 text-4xl font-semibold tracking-wide">{entry.romaji}</span>
                 {entry.meaning && (
-                  <span className="mt-1.5 text-sm text-muted">{entry.meaning}</span>
+                  <span className="mt-1.5 text-sm text-muted">
+                    {localizedMeaning(entry.id, entry.meaning, lang)}
+                  </span>
                 )}
                 <button
                   onClick={() => speak(entry.kana, useStore.getState().settings.audio)}
@@ -319,7 +371,7 @@ export default function ReviewPage() {
                       strokeLinecap="round"
                     />
                   </svg>
-                  Play audio
+                  {t.playAudio}
                 </button>
               </div>
             </motion.div>
@@ -349,12 +401,12 @@ export default function ReviewPage() {
                 onClick={() => answer(r)}
                 className={`flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-2xl border px-2 py-3 font-medium transition-colors ${RATING_STYLES[r]}`}
               >
-                <span>{RATING_LABELS[r]}</span>
+                <span>{t.ratings[r]}</span>
                 <span className="text-xs opacity-70">
                   {r === 'again' || previews[r].endsWith('m') ? '<' : ''}
                   {previews[r]}
                 </span>
-                <span className="sr-only">shortcut {i + 1}</span>
+                <span className="sr-only">{t.shortcut(i + 1)}</span>
               </motion.button>
             ))}
           </div>
@@ -364,13 +416,13 @@ export default function ReviewPage() {
             onClick={reveal}
             className="w-full rounded-2xl bg-sumi py-4 font-medium text-surface"
           >
-            Show answer
-            <span className="ml-2 hidden text-xs opacity-60 sm:inline">Space</span>
+            {t.showAnswer}
+            <span className="ml-2 hidden text-xs opacity-60 sm:inline">{t.spaceKey}</span>
           </motion.button>
         )}
       </div>
       <p className="mt-4 hidden text-center text-xs text-muted sm:block">
-        Space to flip · 1–4 to rate
+        {t.hint}
       </p>
     </div>
   )

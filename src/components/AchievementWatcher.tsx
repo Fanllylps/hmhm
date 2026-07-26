@@ -7,6 +7,7 @@ import {
   type AchievementDef,
 } from '../data/achievements'
 import { haptic } from '../lib/haptics'
+import { useLang } from '../lib/i18n'
 import { useStore } from '../stores/store'
 
 /**
@@ -20,6 +21,7 @@ export default function AchievementWatcher() {
   const xp = useStore((s) => s.xp)
   const unlocked = useStore((s) => s.unlockedAchievements)
   const unlockAchievements = useStore((s) => s.unlockAchievements)
+  const lang = useLang()
 
   const [queue, setQueue] = useState<AchievementDef[]>([])
 
@@ -63,9 +65,9 @@ export default function AchievementWatcher() {
             <Hanko char={current.jp} size={38} />
             <div>
               <div className="text-xs font-semibold uppercase tracking-widest text-vermilion">
-                Achievement
+                {lang === 'id' ? 'Pencapaian' : 'Achievement'}
               </div>
-              <div className="text-sm font-semibold">{current.title}</div>
+              <div className="text-sm font-semibold">{current.title[lang]}</div>
             </div>
           </motion.div>
         )}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { addDays, dayKey, type DayActivity } from '../../lib/dates'
+import { dateLocale, useLang, type Lang } from '../../lib/i18n'
 
 const WEEKS = 16
 /** Cell size (12px) + column gap (3px) — used to place month labels. */
@@ -14,6 +15,23 @@ const LEVEL_CLASSES = [
   'bg-matcha/80',
   'bg-matcha',
 ]
+
+const EN = {
+  cellTitle: (count: number, date: string) =>
+    `${count} review${count === 1 ? '' : 's'} on ${date}`,
+  weekdays: ['Mon', '', 'Wed', '', 'Fri', '', ''],
+  less: 'Less',
+  more: 'More',
+}
+
+const ID: typeof EN = {
+  cellTitle: (count: number, date: string) => `${count} review pada ${date}`,
+  weekdays: ['Sen', '', 'Rab', '', 'Jum', '', ''],
+  less: 'Sedikit',
+  more: 'Banyak',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 function levelClass(count: number): string {
   if (count === 0) return LEVEL_CLASSES[0]
@@ -42,6 +60,9 @@ interface Week {
  */
 export default function Heatmap({ activity }: { activity: Record<string, DayActivity> }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const lang = useLang()
+  const t = STR[lang]
+  const locale = dateLocale(lang)
 
   const weeks = useMemo<Week[]>(() => {
     const now = Date.now()
@@ -55,14 +76,14 @@ export default function Heatmap({ activity }: { activity: Record<string, DayActi
       const label =
         month === prevMonth
           ? null
-          : mondayDate.toLocaleDateString(undefined, { month: 'short' })
+          : mondayDate.toLocaleDateString(locale, { month: 'short' })
       prevMonth = month
       return {
         month: label,
         days: Array.from({ length: 7 }, (_, d) => {
           const ts = addDays(monday, d)
           const count = activity[dayKey(ts)]?.reviews ?? 0
-          const date = new Date(ts).toLocaleDateString(undefined, {
+          const date = new Date(ts).toLocaleDateString(locale, {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
@@ -70,13 +91,13 @@ export default function Heatmap({ activity }: { activity: Record<string, DayActi
           return {
             key: dayKey(ts),
             count,
-            title: `${count} review${count === 1 ? '' : 's'} on ${date}`,
+            title: t.cellTitle(count, date),
             future: ts > now,
           }
         }),
       }
     })
-  }, [activity])
+  }, [activity, locale, t])
 
   // Start scrolled to the most recent weeks on narrow screens.
   useEffect(() => {
@@ -104,7 +125,7 @@ export default function Heatmap({ activity }: { activity: Record<string, DayActi
           </div>
           <div className="flex gap-[3px]">
             <div aria-hidden className="flex w-8 flex-col gap-[3px]">
-              {['Mon', '', 'Wed', '', 'Fri', '', ''].map((d, i) => (
+              {t.weekdays.map((d, i) => (
                 <div key={i} className="flex h-3 items-center text-[9px] leading-none text-muted">
                   {d}
                 </div>
@@ -129,11 +150,11 @@ export default function Heatmap({ activity }: { activity: Record<string, DayActi
         </div>
       </div>
       <div className="mt-3 flex items-center gap-1 text-[10px] text-muted">
-        <span className="mr-0.5">Less</span>
+        <span className="mr-0.5">{t.less}</span>
         {LEVEL_CLASSES.map((c) => (
           <span key={c} aria-hidden className={`h-3 w-3 rounded-[3px] ${c}`} />
         ))}
-        <span className="ml-0.5">More</span>
+        <span className="ml-0.5">{t.more}</span>
       </div>
     </div>
   )

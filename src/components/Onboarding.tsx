@@ -1,23 +1,65 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useStore, type Settings } from '../stores/store'
+import { useLang } from '../lib/i18n'
+import { useStore, type Lang, type Settings } from '../stores/store'
 
 type ScriptChoice = Settings['scripts']
 
-const SCRIPTS: { value: ScriptChoice; kana: string; title: string; desc: string }[] = [
-  { value: 'hiragana', kana: 'あ', title: 'Hiragana', desc: 'The essential first script' },
-  { value: 'katakana', kana: 'ア', title: 'Katakana', desc: 'For loanwords & names' },
-  { value: 'both', kana: 'あア', title: 'Both', desc: 'Learn them side by side' },
-]
+const EN = {
+  tagline: 'Learn hiragana & katakana with spaced repetition and playful practice games.',
+  getStarted: 'Get started',
+  whatLearn: 'What do you want to learn?',
+  changeLater: 'You can change this anytime in Settings.',
+  scripts: {
+    hiragana: { title: 'Hiragana', desc: 'The essential first script' },
+    katakana: { title: 'Katakana', desc: 'For loanwords & names' },
+    both: { title: 'Both', desc: 'Learn them side by side' },
+  },
+  continue: 'Continue',
+  pickPace: 'Pick your daily pace',
+  paceQuestion: 'How many new kana per day?',
+  paces: [
+    { value: 5, title: 'Relaxed', desc: '5 new kana a day' },
+    { value: 10, title: 'Steady', desc: '10 new kana a day' },
+    { value: 20, title: 'Ambitious', desc: '20 new kana a day' },
+  ],
+  start: 'Start learning',
+}
 
-const PACES: { value: number; title: string; desc: string }[] = [
-  { value: 5, title: 'Relaxed', desc: '5 new kana a day' },
-  { value: 10, title: 'Steady', desc: '10 new kana a day' },
-  { value: 20, title: 'Ambitious', desc: '20 new kana a day' },
-]
+const ID: typeof EN = {
+  tagline: 'Belajar hiragana & katakana dengan spaced repetition dan game latihan yang seru.',
+  getStarted: 'Mulai',
+  whatLearn: 'Mau belajar yang mana?',
+  changeLater: 'Bisa diubah kapan saja di Setelan.',
+  scripts: {
+    hiragana: { title: 'Hiragana', desc: 'Aksara pertama yang wajib' },
+    katakana: { title: 'Katakana', desc: 'Untuk kata serapan & nama' },
+    both: { title: 'Keduanya', desc: 'Belajar berdampingan' },
+  },
+  continue: 'Lanjut',
+  pickPace: 'Pilih ritme harianmu',
+  paceQuestion: 'Berapa kana baru per hari?',
+  paces: [
+    { value: 5, title: 'Santai', desc: '5 kana baru per hari' },
+    { value: 10, title: 'Stabil', desc: '10 kana baru per hari' },
+    { value: 20, title: 'Ambisius', desc: '20 kana baru per hari' },
+  ],
+  start: 'Mulai belajar',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
+
+const SCRIPT_KANA: Record<ScriptChoice, string> = {
+  hiragana: 'あ',
+  katakana: 'ア',
+  both: 'あア',
+}
 
 export default function Onboarding() {
   const completeOnboarding = useStore((s) => s.completeOnboarding)
+  const updateSettings = useStore((s) => s.updateSettings)
+  const lang = useLang()
+  const t = STR[lang]
   const [step, setStep] = useState(0)
   const [scripts, setScripts] = useState<ScriptChoice>('hiragana')
   const [pace, setPace] = useState(10)
@@ -29,6 +71,22 @@ export default function Onboarding() {
       aria-label="Welcome to KanaFlow"
       className="fixed inset-0 z-50 overflow-y-auto bg-washi"
     >
+      {/* Language switch, visible from the very first screen */}
+      <div className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] flex rounded-full border border-hairline bg-surface p-0.5 text-xs font-semibold">
+        {(['en', 'id'] as Lang[]).map((l) => (
+          <button
+            key={l}
+            onClick={() => updateSettings({ language: l })}
+            aria-pressed={lang === l}
+            className={`rounded-full px-2.5 py-1 uppercase transition-colors ${
+              lang === l ? 'bg-sumi text-surface' : 'text-muted'
+            }`}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-12">
         <AnimatePresence mode="wait">
           {step === 0 && (
@@ -48,15 +106,13 @@ export default function Onboarding() {
                 か
               </motion.span>
               <h1 className="text-3xl font-semibold tracking-tight">KanaFlow</h1>
-              <p className="mx-auto mt-3 max-w-xs text-muted">
-                Learn hiragana &amp; katakana with spaced repetition and playful practice games.
-              </p>
+              <p className="mx-auto mt-3 max-w-xs text-muted">{t.tagline}</p>
               <button
                 onClick={() => setStep(1)}
                 autoFocus
                 className="mt-10 w-full rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface shadow-soft transition-transform active:scale-[0.98]"
               >
-                Get started
+                {t.getStarted}
               </button>
             </motion.div>
           )}
@@ -68,24 +124,24 @@ export default function Onboarding() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
             >
-              <h2 className="text-2xl font-semibold tracking-tight">What do you want to learn?</h2>
-              <p className="mt-1 text-sm text-muted">You can change this anytime in Settings.</p>
+              <h2 className="text-2xl font-semibold tracking-tight">{t.whatLearn}</h2>
+              <p className="mt-1 text-sm text-muted">{t.changeLater}</p>
               <div className="mt-6 space-y-3">
-                {SCRIPTS.map((s) => (
+                {(Object.keys(t.scripts) as ScriptChoice[]).map((value) => (
                   <button
-                    key={s.value}
-                    onClick={() => setScripts(s.value)}
-                    aria-pressed={scripts === s.value}
+                    key={value}
+                    onClick={() => setScripts(value)}
+                    aria-pressed={scripts === value}
                     className={`flex w-full items-center gap-4 rounded-2xl border bg-surface p-4 text-left shadow-soft transition-all active:scale-[0.99] ${
-                      scripts === s.value ? 'border-vermilion' : 'border-hairline hover:border-muted/40'
+                      scripts === value ? 'border-vermilion' : 'border-hairline hover:border-muted/40'
                     }`}
                   >
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-washi font-kana text-xl">
-                      {s.kana}
+                      {SCRIPT_KANA[value]}
                     </span>
                     <span>
-                      <span className="block font-medium">{s.title}</span>
-                      <span className="block text-sm text-muted">{s.desc}</span>
+                      <span className="block font-medium">{t.scripts[value].title}</span>
+                      <span className="block text-sm text-muted">{t.scripts[value].desc}</span>
                     </span>
                   </button>
                 ))}
@@ -94,7 +150,7 @@ export default function Onboarding() {
                 onClick={() => setStep(2)}
                 className="mt-8 w-full rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface shadow-soft transition-transform active:scale-[0.98]"
               >
-                Continue
+                {t.continue}
               </button>
             </motion.div>
           )}
@@ -106,10 +162,10 @@ export default function Onboarding() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
             >
-              <h2 className="text-2xl font-semibold tracking-tight">Pick your daily pace</h2>
-              <p className="mt-1 text-sm text-muted">How many new kana per day?</p>
+              <h2 className="text-2xl font-semibold tracking-tight">{t.pickPace}</h2>
+              <p className="mt-1 text-sm text-muted">{t.paceQuestion}</p>
               <div className="mt-6 space-y-3">
-                {PACES.map((p) => (
+                {t.paces.map((p) => (
                   <button
                     key={p.value}
                     onClick={() => setPace(p.value)}
@@ -130,7 +186,7 @@ export default function Onboarding() {
                 onClick={() => completeOnboarding({ scripts, newPerDay: pace })}
                 className="mt-8 w-full rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface shadow-soft transition-transform active:scale-[0.98]"
               >
-                Start learning
+                {t.start}
               </button>
             </motion.div>
           )}

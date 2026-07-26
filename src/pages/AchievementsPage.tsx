@@ -2,7 +2,22 @@ import { motion } from 'framer-motion'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
 import { ACHIEVEMENTS, buildAchievementContext } from '../data/achievements'
-import { useStore } from '../stores/store'
+import { dateLocale, useLang } from '../lib/i18n'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  title: 'Achievements',
+  subtitle: (n: number, total: number) => `${n} of ${total} hanko collected`,
+  unlocked: (date: string) => `Unlocked ${date}`,
+}
+
+const ID: typeof EN = {
+  title: 'Pencapaian',
+  subtitle: (n: number, total: number) => `${n} dari ${total} hanko terkumpul`,
+  unlocked: (date: string) => `Terbuka ${date}`,
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 export default function AchievementsPage() {
   const cards = useStore((s) => s.cards)
@@ -10,6 +25,8 @@ export default function AchievementsPage() {
   const best = useStore((s) => s.best)
   const xp = useStore((s) => s.xp)
   const unlocked = useStore((s) => s.unlockedAchievements)
+  const lang = useLang()
+  const t = STR[lang]
 
   const ctx = buildAchievementContext({ cards, activity, best, xp })
   const unlockedCount = ACHIEVEMENTS.filter((a) => unlocked[a.id] !== undefined).length
@@ -17,9 +34,9 @@ export default function AchievementsPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        title="Achievements"
+        title={t.title}
         jp="実績"
-        subtitle={`${unlockedCount} of ${ACHIEVEMENTS.length} hanko collected`}
+        subtitle={t.subtitle(unlockedCount, ACHIEVEMENTS.length)}
         backTo="/"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -49,15 +66,18 @@ export default function AchievementsPage() {
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <div className={`font-semibold ${isUnlocked ? '' : 'text-muted'}`}>{a.title}</div>
-                <div className="mt-0.5 text-sm text-muted">{a.description}</div>
+                <div className={`font-semibold ${isUnlocked ? '' : 'text-muted'}`}>
+                  {a.title[lang]}
+                </div>
+                <div className="mt-0.5 text-sm text-muted">{a.description[lang]}</div>
                 {isUnlocked ? (
                   <div className="mt-1 text-xs text-matcha">
-                    Unlocked{' '}
-                    {new Date(at).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
+                    {t.unlocked(
+                      new Date(at).toLocaleDateString(dateLocale(lang), {
+                        month: 'short',
+                        day: 'numeric',
+                      }),
+                    )}
                   </div>
                 ) : (
                   <div className="mt-2 flex items-center gap-2">

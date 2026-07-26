@@ -1,14 +1,32 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { addDays, dayKey, type DayActivity } from '../../lib/dates'
+import { dateLocale, useLang, type Lang } from '../../lib/i18n'
 
 const DAYS = 14
+
+const EN = {
+  barTitle: (count: number, date: string) =>
+    `${count} review${count === 1 ? '' : 's'} on ${date}`,
+  empty: 'No reviews in the last two weeks — your next session will draw the first bar.',
+}
+
+const ID: typeof EN = {
+  barTitle: (count: number, date: string) => `${count} review pada ${date}`,
+  empty: 'Belum ada review dalam dua minggu terakhir — sesi berikutnya akan menggambar batang pertamamu.',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 /**
  * Reviews-per-day bar chart for the last two weeks — pure divs, matcha bars
  * normalized to the busiest day.
  */
 export default function ReviewsChart({ activity }: { activity: Record<string, DayActivity> }) {
+  const lang = useLang()
+  const t = STR[lang]
+  const locale = dateLocale(lang)
+
   const days = useMemo(() => {
     const now = Date.now()
     return Array.from({ length: DAYS }, (_, i) => {
@@ -18,24 +36,20 @@ export default function ReviewsChart({ activity }: { activity: Record<string, Da
       return {
         key: dayKey(ts),
         count,
-        weekday: d.toLocaleDateString(undefined, { weekday: 'narrow' }),
-        title: `${count} review${count === 1 ? '' : 's'} on ${d.toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-        })}`,
+        weekday: d.toLocaleDateString(locale, { weekday: 'narrow' }),
+        title: t.barTitle(
+          count,
+          d.toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
+        ),
         isToday: i === DAYS - 1,
       }
     })
-  }, [activity])
+  }, [activity, locale, t])
 
   const max = Math.max(...days.map((d) => d.count))
 
   if (max === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-muted">
-        No reviews in the last two weeks — your next session will draw the first bar.
-      </p>
-    )
+    return <p className="py-8 text-center text-sm text-muted">{t.empty}</p>
   }
 
   return (

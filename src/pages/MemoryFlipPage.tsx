@@ -6,8 +6,53 @@ import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
 import { speak } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import { shuffle, usePracticePool } from '../lib/practice'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  subtitle: 'Match each kana to its reading',
+  idleTitle: 'Find the pairs',
+  idleBody:
+    'Twelve cards hide six kana and their readings. Flip two at a time and clear the board in as few moves as you can — a missed pair brings that kana back for review sooner.',
+  startRound: 'Start round',
+  pairsProgress: (matched: number, total: number) => `${matched} / ${total} pairs`,
+  movesCount: (moves: number) => `${moves} move${moves === 1 ? '' : 's'}`,
+  srStatus: (matched: number, total: number, moves: number) =>
+    `${matched} of ${total} pairs found in ${moves} moves`,
+  ariaKanaCard: (kana: string) => `Kana card ${kana}`,
+  ariaReadingCard: (romaji: string) => `Reading card ${romaji}`,
+  ariaFaceDown: 'Face-down card',
+  missHint: 'Misses send that kana back to review sooner.',
+  allFound: 'All pairs found',
+  summary: (pairs: number, moves: number) => `${pairs} pairs in ${moves} move${moves === 1 ? '' : 's'}`,
+  perfectMemory: 'Perfect memory — not a single wasted flip.',
+  playAgain: 'Play again',
+  backToPractice: 'Back to practice',
+}
+
+const ID: typeof EN = {
+  subtitle: 'Cocokkan tiap kana dengan cara bacanya',
+  idleTitle: 'Temukan pasangannya',
+  idleBody:
+    'Dua belas kartu menyembunyikan enam kana dan cara bacanya. Balik dua kartu sekaligus dan bersihkan papan dengan langkah sesedikit mungkin — pasangan yang meleset bikin kana itu balik ke review lebih cepat.',
+  startRound: 'Mulai ronde',
+  pairsProgress: (matched, total) => `${matched} / ${total} pasangan`,
+  movesCount: (moves) => `${moves} langkah`,
+  srStatus: (matched, total, moves) =>
+    `${matched} dari ${total} pasangan ditemukan dalam ${moves} langkah`,
+  ariaKanaCard: (kana) => `Kartu kana ${kana}`,
+  ariaReadingCard: (romaji) => `Kartu bacaan ${romaji}`,
+  ariaFaceDown: 'Kartu tertutup',
+  missHint: 'Salah tebak bikin kana itu balik ke review lebih cepat.',
+  allFound: 'Semua pasangan ditemukan',
+  summary: (pairs, moves) => `${pairs} pasangan dalam ${moves} langkah`,
+  perfectMemory: 'Memori sempurna — tidak ada langkah yang terbuang.',
+  playAgain: 'Main lagi',
+  backToPractice: 'Kembali ke latihan',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 const PAIRS = 6
 /** How long a mismatched pair stays face-up before flipping back. */
@@ -43,6 +88,8 @@ function buildDeck(pool: KanaEntry[]): FlipCard[] {
 }
 
 function IdleScreen({ onStart }: { onStart: () => void }) {
+  const lang = useLang()
+  const t = STR[lang]
   return (
     <div className="rounded-2xl border border-hairline bg-surface p-8 text-center shadow-soft">
       <div aria-hidden className="mb-6 flex items-end justify-center gap-2.5">
@@ -56,18 +103,14 @@ function IdleScreen({ onStart }: { onStart: () => void }) {
           〇
         </span>
       </div>
-      <h2 className="text-xl font-semibold">Find the pairs</h2>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-        Twelve cards hide six kana and their readings. Flip two at a time and
-        clear the board in as few moves as you can — a missed pair brings that
-        kana back for review sooner.
-      </p>
+      <h2 className="text-xl font-semibold">{t.idleTitle}</h2>
+      <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.idleBody}</p>
       <motion.button
         whileTap={{ scale: 0.98 }}
         onClick={onStart}
         className="mt-8 w-full rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface sm:w-auto sm:px-10"
       >
-        Start round
+        {t.startRound}
       </motion.button>
     </div>
   )
@@ -82,6 +125,8 @@ function CompletionScreen({
   moves: number
   onPlayAgain: () => void
 }) {
+  const lang = useLang()
+  const t = STR[lang]
   const perfect = moves === entries.length
   return (
     <div className="mx-auto max-w-md text-center">
@@ -94,14 +139,10 @@ function CompletionScreen({
         <div className="flex justify-center">
           <Hanko char="完" size={52} />
         </div>
-        <h2 className="mt-4 text-2xl font-semibold">All pairs found</h2>
-        <p className="mt-1 text-sm text-muted">
-          {entries.length} pairs in {moves} move{moves === 1 ? '' : 's'}
-        </p>
+        <h2 className="mt-4 text-2xl font-semibold">{t.allFound}</h2>
+        <p className="mt-1 text-sm text-muted">{t.summary(entries.length, moves)}</p>
         {perfect && (
-          <p className="mt-2 text-sm font-medium text-matcha">
-            Perfect memory — not a single wasted flip.
-          </p>
+          <p className="mt-2 text-sm font-medium text-matcha">{t.perfectMemory}</p>
         )}
         <div className="mt-6 grid grid-cols-6 gap-1.5">
           {entries.map((e) => (
@@ -117,13 +158,13 @@ function CompletionScreen({
             onClick={onPlayAgain}
             className="rounded-2xl bg-vermilion px-6 py-3 font-medium text-surface"
           >
-            Play again
+            {t.playAgain}
           </motion.button>
           <Link
             to="/practice"
             className="rounded-2xl border border-hairline px-6 py-3 font-medium text-muted transition-colors hover:text-sumi"
           >
-            Back to practice
+            {t.backToPractice}
           </Link>
         </div>
       </motion.div>
@@ -134,6 +175,8 @@ function CompletionScreen({
 export default function MemoryFlipPage() {
   const pool = usePracticePool()
   const recordPractice = useStore((s) => s.recordPractice)
+  const lang = useLang()
+  const t = STR[lang]
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [deck, setDeck] = useState<FlipCard[]>([])
@@ -202,7 +245,7 @@ export default function MemoryFlipPage() {
       <PageHeader
         title="Memory Flip"
         jp="記憶"
-        subtitle="Match each kana to its reading"
+        subtitle={t.subtitle}
         backTo="/practice"
       />
 
@@ -241,17 +284,13 @@ export default function MemoryFlipPage() {
                     />
                   ))}
                 </div>
-                <span>
-                  {matched.length} / {pairCount} pairs
-                </span>
+                <span>{t.pairsProgress(matched.length, pairCount)}</span>
               </div>
-              <span>
-                {moves} move{moves === 1 ? '' : 's'}
-              </span>
+              <span>{t.movesCount(moves)}</span>
             </div>
 
             <p aria-live="polite" className="sr-only">
-              {matched.length} of {pairCount} pairs found in {moves} moves
+              {t.srStatus(matched.length, pairCount, moves)}
             </p>
 
             <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-3">
@@ -271,9 +310,9 @@ export default function MemoryFlipPage() {
                     aria-label={
                       isUp
                         ? card.face === 'kana'
-                          ? card.entry.kana
-                          : card.entry.romaji
-                        : 'Face-down card'
+                          ? t.ariaKanaCard(card.entry.kana)
+                          : t.ariaReadingCard(card.entry.romaji)
+                        : t.ariaFaceDown
                     }
                     className="relative aspect-square w-full [perspective:800px]"
                   >
@@ -319,9 +358,7 @@ export default function MemoryFlipPage() {
               })}
             </div>
 
-            <p className="mt-5 text-center text-xs text-muted">
-              Misses send that kana back to review sooner.
-            </p>
+            <p className="mt-5 text-center text-xs text-muted">{t.missHint}</p>
           </motion.div>
         )}
 

@@ -4,8 +4,49 @@ import PageHeader from '../components/PageHeader'
 import { type KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
+import { useLang } from '../lib/i18n'
 import { pickChoices, usePracticePool } from '../lib/practice'
-import { useStore } from '../stores/store'
+import { useStore, type Lang } from '../stores/store'
+
+const EN = {
+  title: 'Quiz',
+  subtitle: 'Multiple choice, both directions',
+  ready: 'Ready when you are',
+  intro: (n: number) =>
+    `Endless rounds from your pool of ${n} kana. Questions flip direction at random — miss one and it comes back sooner in Review.`,
+  startBtn: 'Start quiz',
+  idleHint: 'Enter to start · 1–4 to answer',
+  streak: 'Streak',
+  best: 'Best',
+  answered: 'Answered',
+  accuracy: 'Accuracy',
+  chooseReading: 'Choose the reading',
+  chooseScript: (script: string) => `Choose the ${script}`,
+  announceCorrect: 'Correct',
+  announceWrong: (kana: string, romaji: string) => `Incorrect — ${kana} is ${romaji}`,
+  answerHint: '1–4 to answer',
+}
+
+const ID: typeof EN = {
+  title: 'Quiz',
+  subtitle: 'Pilihan ganda, dua arah',
+  ready: 'Mulai saat kamu siap',
+  intro: (n: number) =>
+    `Ronde tanpa akhir dari ${n} kana di pool-mu. Arah pertanyaan berganti secara acak — kalau salah, kana itu muncul lagi lebih cepat di Review.`,
+  startBtn: 'Mulai quiz',
+  idleHint: 'Enter untuk mulai · Jawab dengan 1–4',
+  streak: 'Runtutan',
+  best: 'Terbaik',
+  answered: 'Dijawab',
+  accuracy: 'Akurasi',
+  chooseReading: 'Pilih cara bacanya',
+  chooseScript: (script: string) => `Pilih ${script}-nya`,
+  announceCorrect: 'Benar',
+  announceWrong: (kana: string, romaji: string) => `Salah — ${kana} itu ${romaji}`,
+  answerHint: 'Jawab dengan 1–4',
+}
+
+const STR: Record<Lang, typeof EN> = { en: EN, id: ID }
 
 /** Feedback pause before the next question slides in. */
 const ADVANCE_MS = 900
@@ -68,6 +109,8 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 export default function QuizPage() {
   const livePool = usePracticePool()
   const recordPractice = useStore((s) => s.recordPractice)
+  const lang = useLang()
+  const t = STR[lang]
 
   /** Snapshot of the practice pool, frozen at game start. */
   const [pool, setPool] = useState<KanaEntry[] | null>(null)
@@ -145,12 +188,7 @@ export default function QuizPage() {
   if (question === null || pool === null) {
     return (
       <div className="mx-auto max-w-xl">
-        <PageHeader
-          title="Quiz"
-          jp="選択"
-          subtitle="Multiple choice, both directions"
-          backTo="/practice"
-        />
+        <PageHeader title={t.title} jp="選択" subtitle={t.subtitle} backTo="/practice" />
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -162,19 +200,16 @@ export default function QuizPage() {
             <span className="text-2xl text-muted">⇄</span>
             <span className="text-5xl font-semibold tracking-wide">a</span>
           </div>
-          <h2 className="mt-7 text-lg font-semibold">Ready when you are</h2>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-            Endless rounds from your pool of {livePool.length} kana. Questions flip direction at
-            random — miss one and it comes back sooner in Review.
-          </p>
+          <h2 className="mt-7 text-lg font-semibold">{t.ready}</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.intro(livePool.length)}</p>
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={start}
             className="mt-8 w-full rounded-2xl bg-vermilion py-3.5 font-medium text-surface sm:w-auto sm:px-12"
           >
-            Start quiz
+            {t.startBtn}
           </motion.button>
-          <p className="mt-4 hidden text-xs text-muted sm:block">Enter to start · 1–4 to answer</p>
+          <p className="mt-4 hidden text-xs text-muted sm:block">{t.idleHint}</p>
         </motion.div>
       </div>
     )
@@ -186,15 +221,10 @@ export default function QuizPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader
-        title="Quiz"
-        jp="選択"
-        subtitle="Multiple choice, both directions"
-        backTo="/practice"
-      />
+      <PageHeader title={t.title} jp="選択" subtitle={t.subtitle} backTo="/practice" />
 
       <div className="mb-5 grid grid-cols-4 divide-x divide-hairline rounded-2xl border border-hairline bg-surface py-3 shadow-soft">
-        <Stat label="Streak">
+        <Stat label={t.streak}>
           <motion.span
             key={pulseKey}
             animate={pulseKey > 0 ? { scale: [1, 1.5, 1] } : undefined}
@@ -205,9 +235,9 @@ export default function QuizPage() {
           </motion.span>
           <span className={streak > 0 ? 'text-vermilion' : undefined}>{streak}</span>
         </Stat>
-        <Stat label="Best">{bestStreak}</Stat>
-        <Stat label="Answered">{answered}</Stat>
-        <Stat label="Accuracy">{accuracy}</Stat>
+        <Stat label={t.best}>{bestStreak}</Stat>
+        <Stat label={t.answered}>{answered}</Stat>
+        <Stat label={t.accuracy}>{accuracy}</Stat>
       </div>
 
       <AnimatePresence mode="popLayout" initial={false}>
@@ -230,8 +260,8 @@ export default function QuizPage() {
             )}
             <span className="mt-6 text-xs font-medium uppercase tracking-widest text-muted">
               {question.direction === 'kana'
-                ? 'Choose the reading'
-                : `Choose the ${question.entry.script}`}
+                ? t.chooseReading
+                : t.chooseScript(question.entry.script)}
             </span>
           </div>
 
@@ -281,11 +311,11 @@ export default function QuizPage() {
       <span aria-live="polite" className="sr-only">
         {picked !== null &&
           (pickedCorrect
-            ? 'Correct'
-            : `Incorrect — ${question.entry.kana} is ${question.entry.romaji}`)}
+            ? t.announceCorrect
+            : t.announceWrong(question.entry.kana, question.entry.romaji))}
       </span>
 
-      <p className="mt-4 hidden text-center text-xs text-muted sm:block">1–4 to answer</p>
+      <p className="mt-4 hidden text-center text-xs text-muted sm:block">{t.answerHint}</p>
     </div>
   )
 }
