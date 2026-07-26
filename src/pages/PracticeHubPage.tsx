@@ -19,6 +19,7 @@ const EN = {
     words: 'Read real Japanese words in kana.',
     writing: 'Draw each character stroke by stroke.',
     vocab: 'Browse & memorize everyday vocabulary.',
+    stories: 'Short reads with tap-to-reveal meanings.',
   },
 }
 
@@ -37,6 +38,7 @@ const ID: typeof EN = {
     words: 'Baca kata Jepang asli dalam kana.',
     writing: 'Gambar tiap karakter goresan demi goresan.',
     vocab: 'Jelajahi & hafalkan kosakata sehari-hari.',
+    stories: 'Bacaan pendek dengan arti yang bisa diketuk.',
   },
 }
 
@@ -62,6 +64,7 @@ const MODES: Mode[] = [
   { to: '/practice/words', title: 'Word Mode', jp: '言葉', key: 'words', icon: 'ね' },
   { to: '/practice/writing', title: 'Writing', jp: '書く', key: 'writing', icon: '筆' },
   { to: '/vocab', title: 'Vocabulary', jp: '語彙', key: 'vocab', icon: '語' },
+  { to: '/stories', title: 'Stories', jp: '物語', key: 'stories', icon: '本' },
 ]
 
 export default function PracticeHubPage() {

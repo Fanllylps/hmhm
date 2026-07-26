@@ -7,6 +7,7 @@ import Heatmap from '../components/dashboard/Heatmap'
 import ReviewsChart from '../components/dashboard/ReviewsChart'
 import { dateLocale, useLang, type Lang } from '../lib/i18n'
 import { levelFromXp } from '../lib/level'
+import { shareProgressCard } from '../lib/shareCard'
 import { formatDuration } from '../lib/srs'
 import { computeStats, useStore } from '../stores/store'
 
@@ -34,6 +35,8 @@ const EN = {
   earnXp: 'Reviews and games earn XP · ',
   xpTotal: (total: string) => `${total} XP total`,
   achievements: 'Achievements →',
+  share: 'Share',
+  fullStats: 'Full statistics →',
   activity: 'Activity',
   last16Weeks: 'last 16 weeks',
   reviewsPerDay: 'Reviews per day',
@@ -72,6 +75,8 @@ const ID: typeof EN = {
   earnXp: 'Review dan game memberi XP · ',
   xpTotal: (total: string) => `total ${total} XP`,
   achievements: 'Pencapaian →',
+  share: 'Bagikan',
+  fullStats: 'Statistik lengkap →',
   activity: 'Aktivitas',
   last16Weeks: '16 minggu terakhir',
   reviewsPerDay: 'Review per hari',
@@ -126,10 +131,33 @@ function SectionCard({
   )
 }
 
-function LevelCard({ xp }: { xp: number }) {
+function LevelCard({
+  xp,
+  streak,
+  mastered,
+  totalCards,
+}: {
+  xp: number
+  streak: number
+  mastered: number
+  totalCards: number
+}) {
   const lang = useLang()
   const t = STR[lang]
   const info = levelFromXp(xp)
+  const share = () =>
+    shareProgressCard(
+      {
+        level: info.level,
+        rankTitle: info.title,
+        jpTitle: info.jpTitle,
+        totalXp: info.totalXp,
+        streak,
+        mastered,
+        totalCards,
+      },
+      lang,
+    ).catch(() => {})
   return (
     <section className="rounded-2xl border border-hairline bg-surface p-5 shadow-soft">
       <div className="flex items-center gap-4">
@@ -164,12 +192,20 @@ function LevelCard({ xp }: { xp: number }) {
               <span className="hidden sm:inline">{t.earnXp}</span>
               {t.xpTotal(info.totalXp.toLocaleString(dateLocale(lang)))}
             </span>
-            <Link
-              to="/achievements"
-              className="shrink-0 font-medium text-vermilion transition-opacity hover:opacity-80"
-            >
-              {t.achievements}
-            </Link>
+            <span className="flex shrink-0 items-center gap-3">
+              <button
+                onClick={share}
+                className="font-medium text-muted transition-colors hover:text-sumi"
+              >
+                {t.share} ↗
+              </button>
+              <Link
+                to="/achievements"
+                className="font-medium text-vermilion transition-opacity hover:opacity-80"
+              >
+                {t.achievements}
+              </Link>
+            </span>
           </div>
         </div>
       </div>
@@ -253,7 +289,7 @@ export default function DashboardPage() {
       )}
 
       {/* Level & XP */}
-      <LevelCard xp={state.xp} />
+      <LevelCard xp={state.xp} streak={stats.streak} mastered={stats.mastered} totalCards={stats.totalCards} />
 
       {/* Stat tiles */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -285,6 +321,11 @@ export default function DashboardPage() {
 
       <SectionCard title={t.reviewsPerDay} aside={t.last14Days}>
         <ReviewsChart activity={state.activity} />
+        <div className="mt-4 border-t border-hairline pt-3 text-right">
+          <Link to="/stats" className="text-xs font-medium text-vermilion">
+            {t.fullStats}
+          </Link>
+        </div>
       </SectionCard>
 
       {/* Practice shortcuts */}

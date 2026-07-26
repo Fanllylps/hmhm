@@ -4,6 +4,7 @@ import { KANA, type KanaEntry } from '../data/kana'
 import { KANJI } from '../data/kanji'
 import { customVocabEntry, VOCAB } from '../data/vocab'
 import type { CustomVocabItem } from '../lib/vocabImport'
+import type { Story } from '../data/stories'
 import { computeStreak, dayKey, type DayActivity } from '../lib/dates'
 import { haptic } from '../lib/haptics'
 import {
@@ -92,6 +93,8 @@ interface AppState {
   unlockedAchievements: Record<string, number>
   /** User-added vocabulary (pasted from an AI or typed by hand). */
   customVocab: CustomVocabItem[]
+  /** User-added reading stories (pasted from an AI). */
+  customStories: Story[]
 
   completeOnboarding: (settings: Partial<Settings>) => void
   updateSettings: (partial: Partial<Settings>) => void
@@ -108,6 +111,9 @@ interface AppState {
   /** Add custom vocabulary, skipping duplicates. Returns [added, skipped]. */
   addCustomVocab: (items: CustomVocabItem[]) => [number, number]
   removeCustomVocab: (kana: string) => void
+  /** Add custom stories, skipping duplicate titles. Returns [added, skipped]. */
+  addCustomStories: (stories: Omit<Story, 'id'>[]) => [number, number]
+  removeCustomStory: (id: string) => void
   importAll: (data: ExportPayload['data']) => void
   resetProgress: () => void
 }
@@ -129,6 +135,8 @@ export interface ExportPayload {
     unlockedAchievements?: Record<string, number>
     /** Absent in backups made before custom vocabulary existed. */
     customVocab?: CustomVocabItem[]
+    /** Absent in backups made before custom stories existed. */
+    customStories?: Story[]
   }
 }
 
@@ -157,6 +165,7 @@ export const useStore = create<AppState>()(
       xp: 0,
       unlockedAchievements: {},
       customVocab: [],
+      customStories: [],
 
       completeOnboarding: (settings) =>
         set((s) => ({ onboarded: true, settings: { ...s.settings, ...settings } })),
@@ -226,6 +235,24 @@ export const useStore = create<AppState>()(
       removeCustomVocab: (kana) =>
         set((s) => ({ customVocab: s.customVocab.filter((c) => c.kana !== kana) })),
 
+      addCustomStories: (stories) => {
+        const s = get()
+        const taken = new Set(s.customStories.map((st) => st.title))
+        const fresh: Story[] = []
+        for (const story of stories) {
+          if (taken.has(story.title)) continue
+          taken.add(story.title)
+          fresh.push({ ...story, id: `cs-${story.title}-${s.customStories.length + fresh.length}` })
+        }
+        const room = Math.max(0, 100 - s.customStories.length)
+        const accepted = fresh.slice(0, room)
+        if (accepted.length > 0) set({ customStories: [...s.customStories, ...accepted] })
+        return [accepted.length, stories.length - accepted.length]
+      },
+
+      removeCustomStory: (id) =>
+        set((s) => ({ customStories: s.customStories.filter((st) => st.id !== id) })),
+
       unlockAchievements: (ids) =>
         set((s) => {
           const fresh = ids.filter((id) => s.unlockedAchievements[id] === undefined)
@@ -256,6 +283,7 @@ export const useStore = create<AppState>()(
           xp: typeof data.xp === 'number' ? data.xp : 0,
           unlockedAchievements: data.unlockedAchievements ?? {},
           customVocab: Array.isArray(data.customVocab) ? data.customVocab : [],
+          customStories: Array.isArray(data.customStories) ? data.customStories : [],
         }),
 
       resetProgress: () =>
@@ -382,6 +410,7 @@ export function buildExportPayload(state: AppState): ExportPayload {
       xp: state.xp,
       unlockedAchievements: state.unlockedAchievements,
       customVocab: state.customVocab,
+      customStories: state.customStories,
     },
   }
 }
