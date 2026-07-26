@@ -23,6 +23,7 @@ import VocabPage from './pages/VocabPage'
 import StoriesPage from './pages/StoriesPage'
 import StatsPage from './pages/StatsPage'
 import AchievementWatcher from './components/AchievementWatcher'
+import Tutorial from './components/Tutorial'
 
 /** Keep the document language in sync for screen readers and hyphenation. */
 function useHtmlLang() {
@@ -52,6 +53,7 @@ function useTheme() {
 
 export default function App() {
   const onboarded = useStore((s) => s.onboarded)
+  const tutorialSeen = useStore((s) => s.tutorialSeen)
   useTheme()
   useHtmlLang()
   return (
@@ -59,9 +61,11 @@ export default function App() {
       <BrowserRouter>
         {/* Nothing renders behind the onboarding overlay, so keyboard focus
             cannot escape into an invisible app. */}
-        {onboarded && <AchievementWatcher />}
+        {onboarded && tutorialSeen && <AchievementWatcher />}
         {!onboarded ? (
           <Onboarding />
+        ) : !tutorialSeen ? (
+          <Tutorial />
         ) : (
         <Routes>
           <Route element={<Layout />}>

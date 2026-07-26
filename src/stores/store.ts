@@ -80,6 +80,8 @@ const DEFAULT_BEST: BestScores = { timeAttack: 0, kanaRain: 0, matchingSec: null
 
 interface AppState {
   onboarded: boolean
+  /** The animated how-to tour has been completed (or skipped). */
+  tutorialSeen: boolean
   settings: Settings
   cards: Record<string, SrsCard>
   /** New cards introduced per day, keyed by dayKey. */
@@ -97,6 +99,7 @@ interface AppState {
   customStories: Story[]
 
   completeOnboarding: (settings: Partial<Settings>) => void
+  completeTutorial: () => void
   updateSettings: (partial: Partial<Settings>) => void
   rateCard: (id: string, rating: Rating) => SrsCard
   /**
@@ -137,6 +140,7 @@ export interface ExportPayload {
     customVocab?: CustomVocabItem[]
     /** Absent in backups made before custom stories existed. */
     customStories?: Story[]
+    tutorialSeen?: boolean
   }
 }
 
@@ -157,6 +161,7 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       onboarded: false,
+      tutorialSeen: false,
       settings: DEFAULT_SETTINGS,
       cards: {},
       newHistory: {},
@@ -169,6 +174,8 @@ export const useStore = create<AppState>()(
 
       completeOnboarding: (settings) =>
         set((s) => ({ onboarded: true, settings: { ...s.settings, ...settings } })),
+
+      completeTutorial: () => set({ tutorialSeen: true }),
 
       updateSettings: (partial) =>
         set((s) => ({ settings: { ...s.settings, ...partial } })),
@@ -284,16 +291,21 @@ export const useStore = create<AppState>()(
           unlockedAchievements: data.unlockedAchievements ?? {},
           customVocab: Array.isArray(data.customVocab) ? data.customVocab : [],
           customStories: Array.isArray(data.customStories) ? data.customStories : [],
+          tutorialSeen: data.tutorialSeen ?? true,
         }),
 
       resetProgress: () =>
         set({
+          onboarded: false,
+          tutorialSeen: false,
           cards: {},
           newHistory: {},
           activity: {},
           best: DEFAULT_BEST,
           xp: 0,
           unlockedAchievements: {},
+          customVocab: [],
+          customStories: [],
         }),
     }),
     {
@@ -411,6 +423,7 @@ export function buildExportPayload(state: AppState): ExportPayload {
       unlockedAchievements: state.unlockedAchievements,
       customVocab: state.customVocab,
       customStories: state.customStories,
+      tutorialSeen: state.tutorialSeen,
     },
   }
 }

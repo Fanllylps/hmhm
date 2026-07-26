@@ -52,7 +52,7 @@ const EN = {
   importDesc: 'Restore from a KanaFlow backup file.',
   importBtn: 'Import',
   reset: 'Reset progress',
-  resetDesc: 'Deletes cards, stats and scores. Settings are kept.',
+  resetDesc: 'Wipes everything and restarts like a fresh install.',
   resetBtn: 'Reset…',
   msgExported: 'Backup downloaded.',
   msgImported: 'Progress restored — welcome back.',
@@ -60,7 +60,7 @@ const EN = {
   msgReset: 'Progress cleared — fresh start.',
   resetTitle: 'Reset progress?',
   resetBody:
-    'This deletes all cards, stats and scores — settings are kept. There is no undo, so consider exporting a backup first.',
+    'This deletes all cards, stats, scores and your custom words & stories, then brings back the welcome tour — a true fresh start. There is no undo, so consider exporting a backup first.',
   cancel: 'Cancel',
   resetConfirm: 'Reset everything',
 }
@@ -102,7 +102,7 @@ const ID: typeof EN = {
   importDesc: 'Pulihkan dari file cadangan KanaFlow.',
   importBtn: 'Impor',
   reset: 'Hapus progres',
-  resetDesc: 'Menghapus kartu, statistik, dan skor. Setelan tetap disimpan.',
+  resetDesc: 'Menghapus semuanya dan mulai ulang seperti baru pasang.',
   resetBtn: 'Hapus…',
   msgExported: 'Cadangan berhasil diunduh.',
   msgImported: 'Progres dipulihkan — selamat datang kembali.',
@@ -110,7 +110,7 @@ const ID: typeof EN = {
   msgReset: 'Progres dihapus — mulai dari awal.',
   resetTitle: 'Hapus progres?',
   resetBody:
-    'Semua kartu, statistik, dan skor akan dihapus — setelan tetap disimpan. Tidak bisa dibatalkan, jadi sebaiknya ekspor cadangan dulu.',
+    'Semua kartu, statistik, skor, serta kosakata & cerita tambahanmu akan dihapus, lalu tur sambutan muncul lagi — benar-benar mulai dari awal. Tidak bisa dibatalkan, jadi sebaiknya ekspor cadangan dulu.',
   cancel: 'Batal',
   resetConfirm: 'Hapus semuanya',
 }
