@@ -103,6 +103,8 @@ interface AppState {
   completeOnboarding: (settings: Partial<Settings>) => void
   completeTutorial: () => void
   completeTour: () => void
+  /** Restart the tutorial + Tako's tour (progress untouched). */
+  replayTours: () => void
   updateSettings: (partial: Partial<Settings>) => void
   rateCard: (id: string, rating: Rating) => SrsCard
   /**
@@ -183,6 +185,8 @@ export const useStore = create<AppState>()(
       completeTutorial: () => set({ tutorialSeen: true }),
 
       completeTour: () => set({ tourSeen: true }),
+
+      replayTours: () => set({ tutorialSeen: false, tourSeen: false }),
 
       updateSettings: (partial) =>
         set((s) => ({ settings: { ...s.settings, ...partial } })),

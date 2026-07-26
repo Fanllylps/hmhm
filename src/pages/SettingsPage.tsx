@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
@@ -44,6 +45,9 @@ const EN = {
   hapticsDesc: 'Vibrate on answers and unlocks. Android — iPhones ignore this.',
   lenient: 'Lenient romaji',
   lenientDesc: 'Accept shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…',
+  replay: "Tako's guide",
+  replayDesc: 'Replay the tutorial and dashboard tour.',
+  replayBtn: 'Replay',
   data: 'Data',
   export: 'Export progress',
   exportDesc: (n: number) => `Download a JSON backup — ${n} card${n === 1 ? '' : 's'}, stats and scores.`,
@@ -94,6 +98,9 @@ const ID: typeof EN = {
   hapticsDesc: 'Bergetar saat menjawab. Khusus Android — iPhone mengabaikannya.',
   lenient: 'Romaji longgar',
   lenientDesc: 'Terima shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…',
+  replay: 'Panduan Tako',
+  replayDesc: 'Putar ulang tutorial dan tur beranda.',
+  replayBtn: 'Putar ulang',
   data: 'Data',
   export: 'Ekspor progres',
   exportDesc: (n: number) => `Unduh cadangan JSON — ${n} kartu, statistik, dan skor.`,
@@ -283,6 +290,8 @@ export default function SettingsPage() {
   const updateSettings = useStore((s) => s.updateSettings)
   const importAll = useStore((s) => s.importAll)
   const resetProgress = useStore((s) => s.resetProgress)
+  const replayTours = useStore((s) => s.replayTours)
+  const navigate = useNavigate()
   const lang = useLang()
   const t = STR[lang]
 
@@ -457,6 +466,27 @@ export default function SettingsPage() {
           checked={settings.lenient}
           onChange={(next) => updateSettings({ lenient: next })}
         />
+        <div className="flex items-center justify-between gap-4 px-5 py-3.5">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <span aria-hidden className="w-8 shrink-0 text-center font-kana text-2xl text-muted">
+              蛸
+            </span>
+            <div className="min-w-0">
+              <div className="font-medium">{t.replay}</div>
+              <div className="mt-0.5 text-sm text-muted">{t.replayDesc}</div>
+            </div>
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => {
+              replayTours()
+              navigate('/')
+            }}
+            className="min-h-[44px] shrink-0 rounded-xl border border-hairline px-4 text-sm font-medium text-sumi transition-colors hover:bg-washi"
+          >
+            {t.replayBtn}
+          </motion.button>
+        </div>
       </Section>
 
       <Section title={t.data} jp="保">

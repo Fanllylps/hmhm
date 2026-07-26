@@ -8,6 +8,7 @@ import ReviewsChart from '../components/dashboard/ReviewsChart'
 import { dateLocale, useLang, type Lang } from '../lib/i18n'
 import { levelFromXp } from '../lib/level'
 import { shareProgressCard } from '../lib/shareCard'
+import TakoBuddy from '../components/TakoBuddy'
 import { formatDuration } from '../lib/srs'
 import { computeStats, useStore } from '../stores/store'
 
@@ -216,6 +217,7 @@ function LevelCard({
 export default function DashboardPage() {
   const state = useStore()
   const stats = computeStats(state)
+  const buddyReady = state.tourSeen
   const lang = useLang()
   const t = STR[lang]
 
@@ -354,6 +356,8 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+
+      {buddyReady && <TakoBuddy dueCount={stats.dueCount} streak={stats.streak} />}
     </div>
   )
 }
