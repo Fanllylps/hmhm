@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 
 const NAV = [
   { to: '/', label: 'Home', jp: '家' },
@@ -30,6 +31,13 @@ function NavItem({ to, label, jp }: { to: string; label: string; jp: string }) {
 
 export default function Layout() {
   const location = useLocation()
+
+  // Every tab starts at the top — otherwise a deep scroll on a long page (the
+  // kana chart) carries over and drops you into the middle of the next one.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-40 hidden border-b border-hairline bg-washi/90 backdrop-blur sm:block">
@@ -49,17 +57,18 @@ export default function Layout() {
       </header>
 
       <main className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 sm:px-6 sm:pb-16 sm:pt-10">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        {/* Keyed on the path so each page remounts and fades in. Deliberately
+            no AnimatePresence/exit here: the child is <Outlet />, whose content
+            swaps as soon as the route changes, so an exiting wrapper would be
+            left holding the *new* page — and could stay stuck at exit opacity. */}
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
+          <Outlet />
+        </motion.div>
       </main>
 
       <nav
