@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#FAF6ED"/>
+  <circle cx="32" cy="32" r="22" fill="none" stroke="#D0491F" stroke-width="3.5"/>
+  <text x="32" y="42" font-family="'Zen Maru Gothic','Hiragino Sans',sans-serif" font-size="28" font-weight="700" fill="#D0491F" text-anchor="middle">か</text>
+</svg>
