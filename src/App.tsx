@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import Layout from './components/Layout'
@@ -17,8 +18,27 @@ import WordModePage from './pages/WordModePage'
 import KanaChartPage from './pages/KanaChartPage'
 import SettingsPage from './pages/SettingsPage'
 
+/** Apply the theme: toggle .dark on <html> and keep the browser UI tinted. */
+function useTheme() {
+  const theme = useStore((s) => s.settings.theme)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = () => {
+      const dark = theme === 'dark' || (theme === 'system' && mq.matches)
+      document.documentElement.classList.toggle('dark', dark)
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute('content', dark ? '#1A1712' : '#FAF6ED')
+    }
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [theme])
+}
+
 export default function App() {
   const onboarded = useStore((s) => s.onboarded)
+  useTheme()
   return (
     <MotionConfig reducedMotion="user">
       <BrowserRouter>

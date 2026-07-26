@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
 import Heatmap from '../components/dashboard/Heatmap'
 import ReviewsChart from '../components/dashboard/ReviewsChart'
+import { levelFromXp } from '../lib/level'
 import { formatDuration } from '../lib/srs'
 import { computeStats, useStore } from '../stores/store'
 
@@ -48,6 +50,46 @@ function SectionCard({
         {aside && <span className="text-xs text-muted">{aside}</span>}
       </div>
       {children}
+    </section>
+  )
+}
+
+function LevelCard({ xp }: { xp: number }) {
+  const info = levelFromXp(xp)
+  return (
+    <section className="rounded-2xl border border-hairline bg-surface p-5 shadow-soft">
+      <div className="flex items-center gap-4">
+        <span
+          aria-hidden
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-vermilion font-semibold tabular-nums text-vermilion"
+        >
+          {info.level}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold">{info.title}</span>
+              <span aria-hidden className="font-kana text-sm text-muted">
+                {info.jpTitle}
+              </span>
+            </div>
+            <span className="text-xs tabular-nums text-muted">
+              {info.intoLevel} / {info.needed} XP
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-hairline">
+            <motion.div
+              className="h-full rounded-full bg-vermilion"
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.round(info.progress * 100)}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+          <div className="mt-1.5 text-xs text-muted">
+            Reviews and games earn XP · {info.totalXp.toLocaleString()} total
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
@@ -117,6 +159,9 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      {/* Level & XP */}
+      <LevelCard xp={state.xp} />
 
       {/* Stat tiles */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

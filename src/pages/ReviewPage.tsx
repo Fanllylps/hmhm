@@ -16,7 +16,14 @@ import {
   previewIntervals,
   type Rating,
 } from '../lib/srs'
-import { activePool, computeStats, newIntroducedToday, useStore } from '../stores/store'
+import {
+  activePool,
+  computeStats,
+  newIntroducedToday,
+  useStore,
+  XP_REVIEW,
+  XP_REVIEW_AGAIN,
+} from '../stores/store'
 
 /** Cards scheduled within this window stay in the current session queue. */
 const SESSION_HORIZON_MS = 20 * 60_000
@@ -49,6 +56,7 @@ function CompletionScreen({
 }) {
   const total = RATINGS.reduce((sum, r) => sum + counts[r], 0)
   const accuracy = total === 0 ? 0 : Math.round(((total - counts.again) / total) * 100)
+  const xpEarned = (total - counts.again) * XP_REVIEW + counts.again * XP_REVIEW_AGAIN
   return (
     <div className="mx-auto max-w-md text-center">
       <Confetti />
@@ -62,7 +70,8 @@ function CompletionScreen({
         </span>
         <h2 className="mt-4 text-2xl font-semibold">Session complete</h2>
         <p className="mt-1 text-sm text-muted">
-          {total} card{total === 1 ? '' : 's'} reviewed · {accuracy}% correct
+          {total} card{total === 1 ? '' : 's'} reviewed · {accuracy}% correct ·{' '}
+          <span className="font-medium text-vermilion">+{xpEarned} XP</span>
         </p>
         <div className="mt-6 grid grid-cols-4 gap-2 text-center text-sm">
           {RATINGS.map((r) => (

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import Hanko from '../components/Hanko'
 import Modal from '../components/Modal'
+import StrokeOrder from '../components/StrokeOrder'
 import PageHeader from '../components/PageHeader'
 import {
   CHART_LAYOUT,
@@ -231,6 +232,29 @@ function CardDetail({ entry, card }: { entry: KanaEntry; card: SrsCard | undefin
             Play audio
           </button>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <h3 className="text-center text-xs font-semibold uppercase tracking-widest text-muted">
+          Stroke order
+        </h3>
+        <div className="mt-3 flex items-start justify-center gap-4">
+          {[...entry.kana].map((glyph) => (
+            <StrokeOrder key={glyph} char={glyph} size={entry.kana.length > 1 ? 108 : 132} />
+          ))}
+        </div>
+        <p className="mt-2 text-center text-[10px] text-muted/80">
+          Stroke data ©{' '}
+          <a
+            href="https://kanjivg.tagaini.net"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-hairline underline-offset-2"
+          >
+            KanjiVG
+          </a>{' '}
+          (Ulrich Apel), CC BY-SA 3.0
+        </p>
       </div>
 
       {studied ? (

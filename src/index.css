@@ -3,6 +3,28 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* washi cream (light) */
+    --c-washi: 250 246 237;
+    --c-surface: 255 253 246;
+    --c-sumi: 38 35 29;
+    --c-muted: 143 136 122;
+    --c-hairline: 234 226 211;
+    --c-vermilion: 208 73 31;
+    --c-matcha: 124 140 93;
+    color-scheme: light;
+  }
+  .dark {
+    /* warm sumi night — same materials, lantern-lit */
+    --c-washi: 26 23 18;
+    --c-surface: 37 33 26;
+    --c-sumi: 237 230 216;
+    --c-muted: 154 145 127;
+    --c-hairline: 58 52 41;
+    --c-vermilion: 224 90 45;
+    --c-matcha: 147 163 117;
+    color-scheme: dark;
+  }
   html {
     -webkit-tap-highlight-color: transparent;
   }

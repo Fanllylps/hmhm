@@ -26,6 +26,7 @@ export interface Settings {
   audio: boolean
   /** Lenient romaji input: accept shi/si, chi/ti, tsu/tu, fu/hu, ja/jya… */
   lenient: boolean
+  theme: 'system' | 'light' | 'dark'
 }
 
 export interface BestScores {
@@ -41,7 +42,14 @@ export const DEFAULT_SETTINGS: Settings = {
   newPerDay: 10,
   audio: true,
   lenient: true,
+  theme: 'system',
 }
+
+/** XP awards — kept here so every surface hands out the same amounts. */
+export const XP_REVIEW = 10
+export const XP_REVIEW_AGAIN = 2
+export const XP_PRACTICE_CORRECT = 5
+export const XP_PRACTICE_WRONG = 1
 
 const DEFAULT_BEST: BestScores = { timeAttack: 0, kanaRain: 0, matchingSec: null }
 
@@ -54,6 +62,8 @@ interface AppState {
   /** All answers per day (SRS reviews + practice modes), keyed by dayKey. */
   activity: Record<string, DayActivity>
   best: BestScores
+  /** Lifetime experience points (see src/lib/level.ts for the level curve). */
+  xp: number
 
   completeOnboarding: (settings: Partial<Settings>) => void
   updateSettings: (partial: Partial<Settings>) => void
@@ -80,6 +90,8 @@ export interface ExportPayload {
     newHistory: Record<string, number>
     activity: Record<string, DayActivity>
     best: BestScores
+    /** Absent in backups made before the XP system existed. */
+    xp?: number
   }
 }
 
@@ -105,6 +117,7 @@ export const useStore = create<AppState>()(
       newHistory: {},
       activity: {},
       best: DEFAULT_BEST,
+      xp: 0,
 
       completeOnboarding: (settings) =>
         set((s) => ({ onboarded: true, settings: { ...s.settings, ...settings } })),
@@ -126,6 +139,7 @@ export const useStore = create<AppState>()(
           newHistory: isIntroduction
             ? { ...s.newHistory, [key]: (s.newHistory[key] ?? 0) + 1 }
             : s.newHistory,
+          xp: s.xp + (rating === 'again' ? XP_REVIEW_AGAIN : XP_REVIEW),
         })
         return updated
       },
@@ -137,7 +151,11 @@ export const useStore = create<AppState>()(
             !correct && id && s.cards[id]
               ? { ...s.cards, [id]: penalize(s.cards[id], now) }
               : s.cards
-          return { cards, activity: bumpActivity(s.activity, correct, now) }
+          return {
+            cards,
+            activity: bumpActivity(s.activity, correct, now),
+            xp: s.xp + (correct ? XP_PRACTICE_CORRECT : XP_PRACTICE_WRONG),
+          }
         })
       },
 
@@ -163,15 +181,27 @@ export const useStore = create<AppState>()(
           newHistory: data.newHistory ?? {},
           activity: data.activity ?? {},
           best: { ...DEFAULT_BEST, ...data.best },
+          xp: typeof data.xp === 'number' ? data.xp : 0,
         }),
 
       resetProgress: () =>
-        set({ cards: {}, newHistory: {}, activity: {}, best: DEFAULT_BEST }),
+        set({ cards: {}, newHistory: {}, activity: {}, best: DEFAULT_BEST, xp: 0 }),
     }),
     {
       name: 'kanaflow-store',
       version: SCHEMA_VERSION,
       storage: createJSONStorage(() => localStorage),
+      // Deep-merge nested objects so state persisted before a field existed
+      // (e.g. settings.theme, xp) picks up defaults instead of undefined.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AppState>
+        return {
+          ...current,
+          ...p,
+          settings: { ...current.settings, ...(p.settings ?? {}) },
+          best: { ...current.best, ...(p.best ?? {}) },
+        }
+      },
       migrate: (persisted, version) => {
         // Migration guard: on unknown/older schemas, keep whatever fields still
         // match and let defaults fill the rest (merge happens on rehydrate).
@@ -256,6 +286,7 @@ export function buildExportPayload(state: AppState): ExportPayload {
       newHistory: state.newHistory,
       activity: state.activity,
       best: state.best,
+      xp: state.xp,
     },
   }
 }

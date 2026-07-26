@@ -31,6 +31,12 @@ const GROUP_OPTIONS: {
 
 const NEW_PER_DAY_OPTIONS = [5, 10, 15, 20, 30]
 
+const THEME_OPTIONS: { value: Settings['theme']; label: string; jp: string }[] = [
+  { value: 'system', label: 'System', jp: '自' },
+  { value: 'light', label: 'Light', jp: '昼' },
+  { value: 'dark', label: 'Dark', jp: '夜' },
+]
+
 /** Small switch: sumi track when on, hairline when off, spring-animated knob. */
 function Toggle({
   checked,
@@ -272,6 +278,42 @@ export default function SettingsPage() {
       </Section>
 
       <Section title="Experience" jp="音">
+        <div className="px-5 py-4">
+          <div className="font-medium">Theme</div>
+          <p className="mt-0.5 text-sm text-muted">
+            Washi cream by day, warm sumi night by dark.
+          </p>
+          <div role="radiogroup" aria-label="Theme" className="mt-3 flex rounded-xl bg-washi p-1">
+            {THEME_OPTIONS.map((opt) => {
+              const active = settings.theme === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => updateSettings({ theme: opt.value })}
+                  className={`relative min-h-[44px] flex-1 rounded-lg px-2 text-sm font-medium transition-colors ${
+                    active ? 'text-sumi' : 'text-muted hover:text-sumi'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="settings-theme-pill"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                      className="absolute inset-0 rounded-lg border border-hairline bg-surface shadow-soft"
+                    />
+                  )}
+                  <span className="relative flex items-center justify-center gap-1.5">
+                    <span aria-hidden className="font-kana text-base">
+                      {opt.jp}
+                    </span>
+                    {opt.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <SwitchRow
           label="Audio"
           description="Speak kana aloud with a Japanese voice."
