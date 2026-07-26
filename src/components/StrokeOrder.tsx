@@ -1,30 +1,17 @@
 import { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
+import { loadStrokes } from '../lib/strokes'
 
 /**
- * Animated stroke-order diagram for a single kana glyph, drawn from KanjiVG
+ * Animated stroke-order diagram for a single glyph, drawn from KanjiVG
  * data (© Ulrich Apel, CC BY-SA 3.0 — served locally from /strokes).
  */
-
-const cache = new Map<string, string[]>()
-
-function fileFor(char: string): string {
-  return `/strokes/${char.codePointAt(0)!.toString(16).padStart(5, '0')}.svg`
-}
-
-/** Extract the stroke paths (in stroke order) from a KanjiVG SVG document. */
-function parseStrokes(svgText: string): string[] {
-  const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml')
-  return [...doc.querySelectorAll('path')]
-    .map((p) => p.getAttribute('d'))
-    .filter((d): d is string => d !== null)
-}
 
 const STROKE_SECONDS = 0.55
 const STROKE_GAP = 0.25
 
 export default function StrokeOrder({ char, size = 130 }: { char: string; size?: number }) {
-  const [strokes, setStrokes] = useState<string[] | null>(cache.get(char) ?? null)
+  const [strokes, setStrokes] = useState<string[] | null>(null)
   const [failed, setFailed] = useState(false)
   /** Bumped by the replay button to restart the draw animation. */
   const [run, setRun] = useState(0)
@@ -33,21 +20,9 @@ export default function StrokeOrder({ char, size = 130 }: { char: string; size?:
   useEffect(() => {
     let cancelled = false
     setFailed(false)
-    const cached = cache.get(char)
-    if (cached) {
-      setStrokes(cached)
-      return
-    }
     setStrokes(null)
-    fetch(fileFor(char))
-      .then((res) => {
-        if (!res.ok) throw new Error(`${res.status}`)
-        return res.text()
-      })
-      .then((text) => {
-        const parsed = parseStrokes(text)
-        if (parsed.length === 0) throw new Error('no strokes')
-        cache.set(char, parsed)
+    loadStrokes(char)
+      .then((parsed) => {
         if (!cancelled) setStrokes(parsed)
       })
       .catch(() => {

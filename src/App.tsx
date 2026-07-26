@@ -17,6 +17,9 @@ import ListeningPage from './pages/ListeningPage'
 import WordModePage from './pages/WordModePage'
 import KanaChartPage from './pages/KanaChartPage'
 import SettingsPage from './pages/SettingsPage'
+import WritingPage from './pages/WritingPage'
+import AchievementsPage from './pages/AchievementsPage'
+import AchievementWatcher from './components/AchievementWatcher'
 
 /** Apply the theme: toggle .dark on <html> and keep the browser UI tinted. */
 function useTheme() {
@@ -44,6 +47,7 @@ export default function App() {
       <BrowserRouter>
         {/* Nothing renders behind the onboarding overlay, so keyboard focus
             cannot escape into an invisible app. */}
+        {onboarded && <AchievementWatcher />}
         {!onboarded ? (
           <Onboarding />
         ) : (
@@ -60,6 +64,8 @@ export default function App() {
             <Route path="practice/memory" element={<MemoryFlipPage />} />
             <Route path="practice/listening" element={<ListeningPage />} />
             <Route path="practice/words" element={<WordModePage />} />
+            <Route path="practice/writing" element={<WritingPage />} />
+            <Route path="achievements" element={<AchievementsPage />} />
             <Route path="chart" element={<KanaChartPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

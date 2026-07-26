@@ -85,8 +85,14 @@ function LevelCard({ xp }: { xp: number }) {
               transition={{ duration: 0.5, ease: 'easeOut' }}
             />
           </div>
-          <div className="mt-1.5 text-xs text-muted">
-            Reviews and games earn XP · {info.totalXp.toLocaleString()} total
+          <div className="mt-1.5 flex items-baseline justify-between gap-3 text-xs text-muted">
+            <span>Reviews and games earn XP · {info.totalXp.toLocaleString()} total</span>
+            <Link
+              to="/achievements"
+              className="shrink-0 font-medium text-vermilion transition-opacity hover:opacity-80"
+            >
+              Achievements →
+            </Link>
           </div>
         </div>
       </div>

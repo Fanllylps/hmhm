@@ -15,6 +15,9 @@ An interactive web app for learning Japanese **Hiragana & Katakana**, built arou
 - **Installable PWA** — add it to your home screen and the whole app (including stroke data) works fully offline
 - **Level & XP** — reviews and games earn XP; level up through Japanese-flavored ranks (新人 → 仮名仙人) with a progress bar on the dashboard
 - **Stroke order** — tap any kana in the chart to watch its strokes drawn in order (data from [KanjiVG](https://kanjivg.tagaini.net) © Ulrich Apel, CC BY-SA 3.0)
+- **Writing practice** — draw each character stroke by stroke with your finger; strokes are matched against the real stroke data (order and direction included), with hints after misses
+- **Achievements** — 15 hanko seals to collect (streaks, mastery, high scores, levels) with unlock toasts and a collection page
+- **Kanji (JLPT N5)** — an optional deck of the 80 N5 kanji with meanings and readings that plugs into the same SRS, games and writing practice
 
 ## Development
 

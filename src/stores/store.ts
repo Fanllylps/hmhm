@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { KANA, type KanaEntry } from '../data/kana'
+import { KANJI } from '../data/kanji'
 import { computeStreak, dayKey, type DayActivity } from '../lib/dates'
 import {
   createCard,
@@ -21,6 +22,8 @@ export interface Settings {
     /** Covers dakuten + handakuten together (single toggle, like the spec). */
     dakuten: boolean
     yoon: boolean
+    /** JLPT N5 kanji deck. */
+    kanji: boolean
   }
   newPerDay: number
   audio: boolean
@@ -38,7 +41,7 @@ export interface BestScores {
 
 export const DEFAULT_SETTINGS: Settings = {
   scripts: 'hiragana',
-  groups: { basic: true, dakuten: false, yoon: false },
+  groups: { basic: true, dakuten: false, yoon: false, kanji: false },
   newPerDay: 10,
   audio: true,
   lenient: true,
@@ -64,6 +67,8 @@ interface AppState {
   best: BestScores
   /** Lifetime experience points (see src/lib/level.ts for the level curve). */
   xp: number
+  /** Achievement id → unlock timestamp. */
+  unlockedAchievements: Record<string, number>
 
   completeOnboarding: (settings: Partial<Settings>) => void
   updateSettings: (partial: Partial<Settings>) => void
@@ -75,6 +80,8 @@ interface AppState {
   recordPractice: (id: string | null, correct: boolean) => void
   submitScore: (game: 'timeAttack' | 'kanaRain', score: number) => void
   submitMatchingTime: (seconds: number) => void
+  /** Record newly earned achievements (ignores already-unlocked ids). */
+  unlockAchievements: (ids: string[]) => void
   importAll: (data: ExportPayload['data']) => void
   resetProgress: () => void
 }
@@ -92,6 +99,8 @@ export interface ExportPayload {
     best: BestScores
     /** Absent in backups made before the XP system existed. */
     xp?: number
+    /** Absent in backups made before achievements existed. */
+    unlockedAchievements?: Record<string, number>
   }
 }
 
@@ -118,6 +127,7 @@ export const useStore = create<AppState>()(
       activity: {},
       best: DEFAULT_BEST,
       xp: 0,
+      unlockedAchievements: {},
 
       completeOnboarding: (settings) =>
         set((s) => ({ onboarded: true, settings: { ...s.settings, ...settings } })),
@@ -164,6 +174,16 @@ export const useStore = create<AppState>()(
           best: { ...s.best, [game]: Math.max(s.best[game], score) },
         })),
 
+      unlockAchievements: (ids) =>
+        set((s) => {
+          const fresh = ids.filter((id) => s.unlockedAchievements[id] === undefined)
+          if (fresh.length === 0) return {}
+          const now = Date.now()
+          const next = { ...s.unlockedAchievements }
+          for (const id of fresh) next[id] = now
+          return { unlockedAchievements: next }
+        }),
+
       submitMatchingTime: (seconds) =>
         set((s) => ({
           best: {
@@ -182,10 +202,18 @@ export const useStore = create<AppState>()(
           activity: data.activity ?? {},
           best: { ...DEFAULT_BEST, ...data.best },
           xp: typeof data.xp === 'number' ? data.xp : 0,
+          unlockedAchievements: data.unlockedAchievements ?? {},
         }),
 
       resetProgress: () =>
-        set({ cards: {}, newHistory: {}, activity: {}, best: DEFAULT_BEST, xp: 0 }),
+        set({
+          cards: {},
+          newHistory: {},
+          activity: {},
+          best: DEFAULT_BEST,
+          xp: 0,
+          unlockedAchievements: {},
+        }),
     }),
     {
       name: 'kanaflow-store',
@@ -198,7 +226,11 @@ export const useStore = create<AppState>()(
         return {
           ...current,
           ...p,
-          settings: { ...current.settings, ...(p.settings ?? {}) },
+          settings: {
+            ...current.settings,
+            ...(p.settings ?? {}),
+            groups: { ...current.settings.groups, ...(p.settings?.groups ?? {}) },
+          },
           best: { ...current.best, ...(p.best ?? {}) },
         }
       },
@@ -215,7 +247,9 @@ export const useStore = create<AppState>()(
 // ---------- Selectors / helpers ----------
 
 export function activePool(settings: Settings): KanaEntry[] {
-  return KANA.filter((k) => {
+  return [...KANA, ...KANJI].filter((k) => {
+    // Kanji sit outside the hiragana/katakana script choice — their own toggle.
+    if (k.group === 'kanji') return settings.groups.kanji
     if (settings.scripts !== 'both' && k.script !== settings.scripts) return false
     if (k.group === 'basic') return settings.groups.basic
     if (k.group === 'dakuten' || k.group === 'handakuten') return settings.groups.dakuten
@@ -287,6 +321,7 @@ export function buildExportPayload(state: AppState): ExportPayload {
       activity: state.activity,
       best: state.best,
       xp: state.xp,
+      unlockedAchievements: state.unlockedAchievements,
     },
   }
 }

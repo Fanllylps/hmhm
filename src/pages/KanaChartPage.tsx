@@ -49,14 +49,16 @@ const MATURITY_META: Record<Maturity, { label: string; cell: string; chip: strin
   },
 }
 
-const GROUPS: { key: KanaGroup; en: string; jp: string; cols: string; aspect: string }[] = [
+type ChartGroup = Exclude<KanaGroup, 'kanji'>
+
+const GROUPS: { key: ChartGroup; en: string; jp: string; cols: string; aspect: string }[] = [
   { key: 'basic', en: 'Basic', jp: '清音', cols: 'grid-cols-5', aspect: 'aspect-square' },
   { key: 'dakuten', en: 'Dakuten', jp: '濁音', cols: 'grid-cols-5', aspect: 'aspect-square' },
   { key: 'handakuten', en: 'Handakuten', jp: '半濁音', cols: 'grid-cols-5', aspect: 'aspect-square' },
   { key: 'yoon', en: 'Yōon', jp: '拗音', cols: 'grid-cols-3', aspect: 'aspect-[2/1]' },
 ]
 
-const GROUP_LABEL: Record<KanaGroup, string> = {
+const GROUP_LABEL: Record<ChartGroup, string> = {
   basic: 'Basic',
   dakuten: 'Dakuten',
   handakuten: 'Handakuten',
@@ -432,7 +434,9 @@ export default function KanaChartPage() {
         onClose={closeDetail}
         title={
           selected
-            ? `${selected.script === 'hiragana' ? 'Hiragana' : 'Katakana'} · ${GROUP_LABEL[selected.group]}`
+            ? `${selected.script === 'hiragana' ? 'Hiragana' : 'Katakana'} · ${
+                GROUP_LABEL[selected.group as ChartGroup] ?? 'Kanji'
+              }`
             : undefined
         }
       >

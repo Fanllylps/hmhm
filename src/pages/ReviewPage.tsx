@@ -5,7 +5,7 @@ import Confetti from '../components/Confetti'
 import EmptyState from '../components/EmptyState'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
-import { KANA_BY_ID } from '../data/kana'
+import { STUDY_BY_ID } from '../data/study'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import {
@@ -168,7 +168,7 @@ export default function ReviewPage() {
 
   const current = queue !== null && queue.length > 0 ? queue[0] : null
   const currentCard = useStore((s) => (current ? s.cards[current.id] : undefined))
-  const entry = current ? KANA_BY_ID[current.id] : null
+  const entry = current ? STUDY_BY_ID[current.id] : null
   const isNewCard = current !== null && (currentCard === undefined || currentCard.phase === 'new')
 
   const previews = useMemo(() => {
@@ -296,6 +296,9 @@ export default function ReviewPage() {
               >
                 <span className="font-kana text-6xl sm:text-7xl">{entry.kana}</span>
                 <span className="mt-4 text-4xl font-semibold tracking-wide">{entry.romaji}</span>
+                {entry.meaning && (
+                  <span className="mt-1.5 text-sm text-muted">{entry.meaning}</span>
+                )}
                 <button
                   onClick={() => speak(entry.kana, useStore.getState().settings.audio)}
                   tabIndex={revealed ? 0 : -1}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import PageHeader from '../components/PageHeader'
 import type { KanaEntry } from '../data/kana'
@@ -48,7 +48,13 @@ function StatPill({ value, label, accent }: { value: string; label: string; acce
 }
 
 export default function ListeningPage() {
-  const livePool = usePracticePool()
+  // Kanji are excluded: TTS picks one reading arbitrarily, which would make
+  // "pick what you heard" ambiguous and unfair.
+  const rawPool = usePracticePool()
+  const livePool = useMemo(() => {
+    const kanaOnly = rawPool.filter((e) => e.group !== 'kanji')
+    return kanaOnly.length > 0 ? kanaOnly : rawPool
+  }, [rawPool])
   const recordPractice = useStore((s) => s.recordPractice)
 
   const [phase, setPhase] = useState<'idle' | 'playing'>('idle')

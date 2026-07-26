@@ -27,6 +27,7 @@ const GROUP_OPTIONS: {
   { key: 'basic', label: 'Basic', description: 'Gojūon — the core sounds', jp: 'あ' },
   { key: 'dakuten', label: 'Dakuten & handakuten', description: 'ga · za · da · ba · pa', jp: 'が' },
   { key: 'yoon', label: 'Yōon', description: 'kya · shu · cho combinations', jp: 'きゃ' },
+  { key: 'kanji', label: 'Kanji (JLPT N5)', description: '80 kanji with meanings & readings', jp: '日' },
 ]
 
 const NEW_PER_DAY_OPTIONS = [5, 10, 15, 20, 30]
@@ -151,8 +152,8 @@ export default function SettingsPage() {
 
   const setGroup = (key: keyof Settings['groups'], value: boolean) => {
     const next = { ...settings.groups, [key]: value }
-    // Guard: at least one kana group must stay enabled.
-    if (!next.basic && !next.dakuten && !next.yoon) return
+    // Guard: at least one group must stay enabled.
+    if (!next.basic && !next.dakuten && !next.yoon && !next.kanji) return
     updateSettings({ groups: next })
   }
 

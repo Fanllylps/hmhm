@@ -20,6 +20,7 @@ const MODES: Mode[] = [
   { to: '/practice/memory', title: 'Memory Flip', jp: '記憶', desc: 'Concentration — find hidden pairs.', icon: 'め' },
   { to: '/practice/listening', title: 'Listening', jp: '聴く', desc: 'Hear it, pick the right kana.', icon: 'き' },
   { to: '/practice/words', title: 'Word Mode', jp: '言葉', desc: 'Read real Japanese words in kana.', icon: 'ね' },
+  { to: '/practice/writing', title: 'Writing', jp: '書く', desc: 'Draw each character stroke by stroke.', icon: '筆' },
 ]
 
 export default function PracticeHubPage() {
