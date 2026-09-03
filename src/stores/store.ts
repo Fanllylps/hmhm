@@ -290,31 +290,43 @@ export const useStore = create<AppState>()(
           },
         })),
 
-      importAll: (data) =>
-        set({
+      importAll: (data) => {
+        const importedSettings = (isRecord(data.settings) ? data.settings : {}) as Partial<Settings>
+        const importedGroups = (isRecord(importedSettings.groups) ? importedSettings.groups : {}) as Partial<
+          Settings['groups']
+        >
+        const importedBest = (isRecord(data.best) ? data.best : {}) as Partial<BestScores>
+        return set({
           onboarded: data.onboarded ?? false,
-          settings: { ...DEFAULT_SETTINGS, ...data.settings },
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...importedSettings,
+            groups: { ...DEFAULT_SETTINGS.groups, ...importedGroups },
+          },
           cards: data.cards ?? {},
           newHistory: data.newHistory ?? {},
           activity: data.activity ?? {},
-          best: { ...DEFAULT_BEST, ...data.best },
-          xp: typeof data.xp === 'number' ? data.xp : 0,
+          best: { ...DEFAULT_BEST, ...importedBest },
+          xp:
+            typeof data.xp === 'number' && Number.isFinite(data.xp) ? Math.max(0, data.xp) : 0,
           unlockedAchievements: data.unlockedAchievements ?? {},
           customVocab: Array.isArray(data.customVocab) ? data.customVocab : [],
           customStories: Array.isArray(data.customStories) ? data.customStories : [],
           tutorialSeen: data.tutorialSeen ?? true,
           tourSeen: data.tourSeen ?? true,
-        }),
+        })
+      },
 
       resetProgress: () =>
         set({
           onboarded: false,
           tutorialSeen: false,
           tourSeen: false,
+          settings: { ...DEFAULT_SETTINGS, groups: { ...DEFAULT_SETTINGS.groups } },
           cards: {},
           newHistory: {},
           activity: {},
-          best: DEFAULT_BEST,
+          best: { ...DEFAULT_BEST },
           xp: 0,
           unlockedAchievements: {},
           customVocab: [],
@@ -452,7 +464,7 @@ export function parseImportPayload(text: string): ExportPayload['data'] {
     !isRecord(parsed) ||
     parsed.app !== 'kanaflow' ||
     typeof parsed.schema !== 'number' ||
-    !(parsed.schema <= SCHEMA_VERSION) || // also rejects NaN
+    !(parsed.schema >= 1 && parsed.schema <= SCHEMA_VERSION) || // also rejects NaN, 0, negatives, future schemas
     !isRecord(parsed.data) ||
     !isRecord(parsed.data.cards) ||
     !isRecord(parsed.data.newHistory) ||

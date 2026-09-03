@@ -156,7 +156,11 @@ export async function shareProgressCard(
   const a = document.createElement('a')
   a.href = url
   a.download = 'kanaflow-progress.png'
+  // Firefox/Safari ignore clicks on detached anchors, so attach first.
+  document.body.appendChild(a)
   a.click()
-  URL.revokeObjectURL(url)
+  a.remove()
+  // Revoke after the browser has had a chance to start the download.
+  window.setTimeout(() => URL.revokeObjectURL(url), 4000)
   return 'downloaded'
 }

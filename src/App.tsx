@@ -1,29 +1,32 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import Layout from './components/Layout'
 import Onboarding from './components/Onboarding'
 import { useStore } from './stores/store'
-import DashboardPage from './pages/DashboardPage'
-import ReviewPage from './pages/ReviewPage'
-import PracticeHubPage from './pages/PracticeHubPage'
-import QuizPage from './pages/QuizPage'
-import TypingPage from './pages/TypingPage'
-import MatchingPage from './pages/MatchingPage'
-import TimeAttackPage from './pages/TimeAttackPage'
-import KanaRainPage from './pages/KanaRainPage'
-import MemoryFlipPage from './pages/MemoryFlipPage'
-import ListeningPage from './pages/ListeningPage'
-import WordModePage from './pages/WordModePage'
-import KanaChartPage from './pages/KanaChartPage'
-import SettingsPage from './pages/SettingsPage'
-import WritingPage from './pages/WritingPage'
-import AchievementsPage from './pages/AchievementsPage'
-import VocabPage from './pages/VocabPage'
-import StoriesPage from './pages/StoriesPage'
-import StatsPage from './pages/StatsPage'
 import AchievementWatcher from './components/AchievementWatcher'
 import Tutorial from './components/Tutorial'
+
+// Code-split the heavy pages so the first load stays small (was a single
+// 532KB bundle). Layout/Onboarding/Tutorial stay eager for first paint.
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const ReviewPage = lazy(() => import('./pages/ReviewPage'))
+const PracticeHubPage = lazy(() => import('./pages/PracticeHubPage'))
+const QuizPage = lazy(() => import('./pages/QuizPage'))
+const TypingPage = lazy(() => import('./pages/TypingPage'))
+const MatchingPage = lazy(() => import('./pages/MatchingPage'))
+const TimeAttackPage = lazy(() => import('./pages/TimeAttackPage'))
+const KanaRainPage = lazy(() => import('./pages/KanaRainPage'))
+const MemoryFlipPage = lazy(() => import('./pages/MemoryFlipPage'))
+const ListeningPage = lazy(() => import('./pages/ListeningPage'))
+const WordModePage = lazy(() => import('./pages/WordModePage'))
+const KanaChartPage = lazy(() => import('./pages/KanaChartPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const WritingPage = lazy(() => import('./pages/WritingPage'))
+const AchievementsPage = lazy(() => import('./pages/AchievementsPage'))
+const VocabPage = lazy(() => import('./pages/VocabPage'))
+const StoriesPage = lazy(() => import('./pages/StoriesPage'))
+const StatsPage = lazy(() => import('./pages/StatsPage'))
 
 /** Keep the document language in sync for screen readers and hyphenation. */
 function useHtmlLang() {
@@ -68,6 +71,13 @@ export default function App() {
         ) : !tutorialSeen ? (
           <Tutorial />
         ) : (
+        <Suspense
+          fallback={
+            <div className="mx-auto max-w-xl p-8 text-center text-sm text-muted">
+              Loading…
+            </div>
+          }
+        >
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<DashboardPage />} />
@@ -91,6 +101,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </Suspense>
         )}
       </BrowserRouter>
     </MotionConfig>
