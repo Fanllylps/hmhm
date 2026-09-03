@@ -220,6 +220,23 @@ export default function QuizPage() {
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
             {drill ? t.drillIntro(leeches.length) : t.intro(livePool.length)}
           </p>
+          {drill && (
+            <div className="mx-auto mt-4 flex max-w-sm flex-wrap justify-center gap-1.5">
+              {leeches.slice(0, 12).map((e) => (
+                <span
+                  key={e.id}
+                  className="rounded-lg bg-washi px-2.5 py-1 font-kana text-lg leading-none"
+                >
+                  {e.kana}
+                </span>
+              ))}
+              {leeches.length > 12 && (
+                <span className="rounded-lg bg-washi px-2.5 py-1 text-sm font-medium text-muted">
+                  +{leeches.length - 12}
+                </span>
+              )}
+            </div>
+          )}
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={start}

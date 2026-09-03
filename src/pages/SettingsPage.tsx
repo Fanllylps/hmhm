@@ -4,11 +4,12 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import { speak } from '../lib/audio'
-import { dayKey } from '../lib/dates'
+import { computeStreak, dayKey } from '../lib/dates'
 import { haptic } from '../lib/haptics'
 import {
   reminderPermission,
   requestReminderPermission,
+  sendStreakReminder,
   type ReminderPermission,
 } from '../lib/reminders'
 import { useLang } from '../lib/i18n'
@@ -338,7 +339,14 @@ export default function SettingsPage() {
 
   const [notifyPerm, setNotifyPerm] = useState<ReminderPermission>(() => reminderPermission())
   const enableNotifications = async () => {
-    setNotifyPerm(await requestReminderPermission())
+    const perm = await requestReminderPermission()
+    setNotifyPerm(perm)
+    // Instant sample so the user knows what 8pm feels like — same pattern as
+    // the haptics buzz and the audio voice sample.
+    if (perm === 'granted') {
+      const s = useStore.getState()
+      sendStreakReminder(computeStreak(s.activity, Date.now()), s.settings.language)
+    }
   }
 
   const handleExport = () => {

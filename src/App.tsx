@@ -23,6 +23,7 @@ import VocabPage from './pages/VocabPage'
 import StoriesPage from './pages/StoriesPage'
 import StatsPage from './pages/StatsPage'
 import AchievementWatcher from './components/AchievementWatcher'
+import QuestWatcher from './components/QuestWatcher'
 import Tutorial from './components/Tutorial'
 import { computeStreak, dayKey } from './lib/dates'
 import { msUntilNextReminder, sendStreakReminder } from './lib/reminders'
@@ -87,7 +88,12 @@ export default function App() {
       <BrowserRouter>
         {/* Nothing renders behind the onboarding overlay, so keyboard focus
             cannot escape into an invisible app. */}
-        {onboarded && tutorialSeen && tourSeen && <AchievementWatcher />}
+        {onboarded && tutorialSeen && tourSeen && (
+          <>
+            <AchievementWatcher />
+            <QuestWatcher />
+          </>
+        )}
         {!onboarded ? (
           <Onboarding />
         ) : !tutorialSeen ? (

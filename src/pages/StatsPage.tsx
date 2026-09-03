@@ -30,7 +30,7 @@ const EN = {
   lapses: (n: number) => `${n} lapse${n === 1 ? '' : 's'}`,
   misses: (n: number) => `${n} misses`,
   leech: 'Leech',
-  drillLeeches: 'Drill leeches →',
+  drillLeeches: (n: number) => `Drill ${n} leech${n === 1 ? '' : 'es'} →`,
   noLapses: 'No lapses yet — nothing is giving you trouble. 頑張って!',
 }
 
@@ -52,7 +52,7 @@ const ID: typeof EN = {
   lapses: (n: number) => `${n}× lupa`,
   misses: (n: number) => `${n}× salah`,
   leech: 'Bandel',
-  drillLeeches: 'Drill kartu bandel →',
+  drillLeeches: (n: number) => `Drill ${n} kartu bandel →`,
   noLapses: 'Belum ada yang bikin kesulitan — mantap. 頑張って!',
 }
 
@@ -260,7 +260,7 @@ export default function StatsPage() {
                 to="/practice/quiz?drill=leech"
                 className="mb-3 block rounded-xl bg-vermilion px-4 py-2.5 text-center text-sm font-semibold text-surface transition-transform active:scale-[0.98]"
               >
-                {t.drillLeeches}
+                {t.drillLeeches(leeches.length)}
               </Link>
             )}
             <div className="divide-y divide-hairline">

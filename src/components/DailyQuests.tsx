@@ -1,8 +1,22 @@
 import { motion } from 'framer-motion'
+import Hanko from './Hanko'
 import { dayKey } from '../lib/dates'
 import { QUESTS, isQuestDone, questProgress, type QuestId } from '../lib/quests'
 import { useLang } from '../lib/i18n'
 import { useStore, type Lang } from '../stores/store'
+
+export const QUEST_NAMES: Record<Lang, Record<QuestId, string>> = {
+  en: {
+    'review-10': 'Review 10 cards',
+    'practice-10': '10 correct practice answers',
+    'new-5': 'Meet 5 new kana',
+  },
+  id: {
+    'review-10': 'Review 10 kartu',
+    'practice-10': '10 jawaban latihan yang benar',
+    'new-5': 'Kenalan dengan 5 kana baru',
+  },
+}
 
 interface QuestStrings {
   title: string
@@ -10,6 +24,7 @@ interface QuestStrings {
   aside: string
   names: Record<QuestId, string>
   done: string
+  allDone: string
   bonus: (xp: number) => string
 }
 
@@ -17,12 +32,9 @@ const EN: QuestStrings = {
   title: 'Daily quests',
   jp: '任',
   aside: 'resets at midnight',
-  names: {
-    'review-10': 'Review 10 cards',
-    'practice-10': '10 correct practice answers',
-    'new-5': 'Meet 5 new kana',
-  },
+  names: QUEST_NAMES.en,
   done: 'Done',
+  allDone: 'All quests done — see you tomorrow!',
   bonus: (xp) => `+${xp} XP`,
 }
 
@@ -30,12 +42,9 @@ const ID: QuestStrings = {
   title: 'Misi harian',
   jp: '任',
   aside: 'reset tengah malam',
-  names: {
-    'review-10': 'Review 10 kartu',
-    'practice-10': '10 jawaban latihan yang benar',
-    'new-5': 'Kenalan dengan 5 kana baru',
-  },
+  names: QUEST_NAMES.id,
   done: 'Selesai',
+  allDone: 'Semua misi selesai — sampai jumpa besok!',
   bonus: (xp) => `+${xp} XP`,
 }
 
@@ -95,6 +104,12 @@ export default function DailyQuests() {
           )
         })}
       </ul>
+      {doneCount === QUESTS.length && (
+        <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted">
+          <Hanko char="完" size={28} />
+          {t.allDone}
+        </div>
+      )}
     </section>
   )
 }
