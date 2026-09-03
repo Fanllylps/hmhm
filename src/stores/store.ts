@@ -8,6 +8,12 @@ import type { Story } from '../data/stories'
 import { computeStreak, dayKey, type DayActivity } from '../lib/dates'
 import { haptic } from '../lib/haptics'
 import {
+  applyQuestEvent,
+  questBonus,
+  type QuestCounts,
+  type QuestId,
+} from '../lib/quests'
+import {
   createCard,
   isDue,
   maturityOf,
@@ -48,6 +54,8 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'
   /** Vibrate on answers (Android; ignored where unsupported). */
   haptics: boolean
+  /** Evening streak-rescue notification (needs browser permission too). */
+  reminders: boolean
   /** UI language. */
   language: Lang
 }
@@ -67,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lenient: true,
   theme: 'system',
   haptics: true,
+  reminders: false,
   language: detectLang(),
 }
 
@@ -99,6 +108,10 @@ interface AppState {
   customVocab: CustomVocabItem[]
   /** User-added reading stories (pasted from an AI). */
   customStories: Story[]
+  /** Daily quest counters, keyed by dayKey. */
+  questCounts: Record<string, QuestCounts>
+  /** Quest ids whose bonus XP was already granted, keyed by dayKey. */
+  questClaimed: Record<string, QuestId[]>
 
   completeOnboarding: (settings: Partial<Settings>) => void
   completeTutorial: () => void
@@ -145,6 +158,10 @@ export interface ExportPayload {
     customVocab?: CustomVocabItem[]
     /** Absent in backups made before custom stories existed. */
     customStories?: Story[]
+    /** Absent in backups made before daily quests existed. */
+    questCounts?: Record<string, QuestCounts>
+    /** Absent in backups made before daily quests existed. */
+    questClaimed?: Record<string, QuestId[]>
     tutorialSeen?: boolean
     tourSeen?: boolean
   }
@@ -178,6 +195,8 @@ export const useStore = create<AppState>()(
       unlockedAchievements: {},
       customVocab: [],
       customStories: [],
+      questCounts: {},
+      questClaimed: {},
 
       completeOnboarding: (settings) =>
         set((s) => ({ onboarded: true, settings: { ...s.settings, ...settings } })),
@@ -200,13 +219,25 @@ export const useStore = create<AppState>()(
         const updated = rate(card, rating, now)
         const key = dayKey(now)
         haptic(rating === 'again' ? 'error' : 'success', s.settings.haptics)
+        const quest = applyQuestEvent(s.questCounts[key], s.questClaimed[key] ?? [], {
+          reviews: 1,
+          newCards: isIntroduction ? 1 : 0,
+        })
         set({
           cards: { ...s.cards, [id]: updated },
           activity: bumpActivity(s.activity, rating !== 'again', now),
           newHistory: isIntroduction
             ? { ...s.newHistory, [key]: (s.newHistory[key] ?? 0) + 1 }
             : s.newHistory,
-          xp: s.xp + (rating === 'again' ? XP_REVIEW_AGAIN : XP_REVIEW),
+          questCounts: { ...s.questCounts, [key]: quest.counts },
+          questClaimed:
+            quest.newlyDone.length > 0
+              ? { ...s.questClaimed, [key]: [...(s.questClaimed[key] ?? []), ...quest.newlyDone] }
+              : s.questClaimed,
+          xp:
+            s.xp +
+            (rating === 'again' ? XP_REVIEW_AGAIN : XP_REVIEW) +
+            questBonus(quest.newlyDone),
         })
         return updated
       },
@@ -219,10 +250,27 @@ export const useStore = create<AppState>()(
             !correct && id && s.cards[id]
               ? { ...s.cards, [id]: penalize(s.cards[id], now) }
               : s.cards
+          const key = dayKey(now)
+          const quest = applyQuestEvent(
+            s.questCounts[key],
+            s.questClaimed[key] ?? [],
+            correct ? { practiceCorrect: 1 } : {},
+          )
           return {
             cards,
             activity: bumpActivity(s.activity, correct, now),
-            xp: s.xp + (correct ? XP_PRACTICE_CORRECT : XP_PRACTICE_WRONG),
+            questCounts: { ...s.questCounts, [key]: quest.counts },
+            questClaimed:
+              quest.newlyDone.length > 0
+                ? {
+                    ...s.questClaimed,
+                    [key]: [...(s.questClaimed[key] ?? []), ...quest.newlyDone],
+                  }
+                : s.questClaimed,
+            xp:
+              s.xp +
+              (correct ? XP_PRACTICE_CORRECT : XP_PRACTICE_WRONG) +
+              questBonus(quest.newlyDone),
           }
         })
       },
@@ -290,35 +338,51 @@ export const useStore = create<AppState>()(
           },
         })),
 
-      importAll: (data) =>
-        set({
+      importAll: (data) => {
+        const importedSettings = (isRecord(data.settings) ? data.settings : {}) as Partial<Settings>
+        const importedGroups = (isRecord(importedSettings.groups) ? importedSettings.groups : {}) as Partial<
+          Settings['groups']
+        >
+        const importedBest = (isRecord(data.best) ? data.best : {}) as Partial<BestScores>
+        return set({
           onboarded: data.onboarded ?? false,
-          settings: { ...DEFAULT_SETTINGS, ...data.settings },
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...importedSettings,
+            groups: { ...DEFAULT_SETTINGS.groups, ...importedGroups },
+          },
           cards: data.cards ?? {},
           newHistory: data.newHistory ?? {},
           activity: data.activity ?? {},
-          best: { ...DEFAULT_BEST, ...data.best },
-          xp: typeof data.xp === 'number' ? data.xp : 0,
+          best: { ...DEFAULT_BEST, ...importedBest },
+          xp:
+            typeof data.xp === 'number' && Number.isFinite(data.xp) ? Math.max(0, data.xp) : 0,
           unlockedAchievements: data.unlockedAchievements ?? {},
           customVocab: Array.isArray(data.customVocab) ? data.customVocab : [],
           customStories: Array.isArray(data.customStories) ? data.customStories : [],
+          questCounts: sanitizeQuestCounts(data.questCounts),
+          questClaimed: sanitizeQuestClaimed(data.questClaimed),
           tutorialSeen: data.tutorialSeen ?? true,
           tourSeen: data.tourSeen ?? true,
-        }),
+        })
+      },
 
       resetProgress: () =>
         set({
           onboarded: false,
           tutorialSeen: false,
           tourSeen: false,
+          settings: { ...DEFAULT_SETTINGS, groups: { ...DEFAULT_SETTINGS.groups } },
           cards: {},
           newHistory: {},
           activity: {},
-          best: DEFAULT_BEST,
+          best: { ...DEFAULT_BEST },
           xp: 0,
           unlockedAchievements: {},
           customVocab: [],
           customStories: [],
+          questCounts: {},
+          questClaimed: {},
         }),
     }),
     {
@@ -436,6 +500,8 @@ export function buildExportPayload(state: AppState): ExportPayload {
       unlockedAchievements: state.unlockedAchievements,
       customVocab: state.customVocab,
       customStories: state.customStories,
+      questCounts: state.questCounts,
+      questClaimed: state.questClaimed,
       tutorialSeen: state.tutorialSeen,
       tourSeen: state.tourSeen,
     },
@@ -446,13 +512,43 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+const countNum = (v: unknown): number =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0
+
+function sanitizeQuestCounts(v: unknown): Record<string, QuestCounts> {
+  if (!isRecord(v)) return {}
+  const out: Record<string, QuestCounts> = {}
+  for (const [key, row] of Object.entries(v)) {
+    if (!isRecord(row)) continue
+    out[key] = {
+      reviews: countNum(row.reviews),
+      practiceCorrect: countNum(row.practiceCorrect),
+      newCards: countNum(row.newCards),
+    }
+  }
+  return out
+}
+
+const KNOWN_QUEST_IDS: ReadonlySet<string> = new Set(['review-10', 'practice-10', 'new-5'])
+
+function sanitizeQuestClaimed(v: unknown): Record<string, QuestId[]> {
+  if (!isRecord(v)) return {}
+  const out: Record<string, QuestId[]> = {}
+  for (const [key, row] of Object.entries(v)) {
+    if (!Array.isArray(row)) continue
+    const ids = row.filter((id): id is QuestId => typeof id === 'string' && KNOWN_QUEST_IDS.has(id))
+    out[key] = [...new Set(ids)]
+  }
+  return out
+}
+
 export function parseImportPayload(text: string): ExportPayload['data'] {
   const parsed: unknown = JSON.parse(text)
   if (
     !isRecord(parsed) ||
     parsed.app !== 'kanaflow' ||
     typeof parsed.schema !== 'number' ||
-    !(parsed.schema <= SCHEMA_VERSION) || // also rejects NaN
+    !(parsed.schema >= 1 && parsed.schema <= SCHEMA_VERSION) || // also rejects NaN, 0, negatives, future schemas
     !isRecord(parsed.data) ||
     !isRecord(parsed.data.cards) ||
     !isRecord(parsed.data.newHistory) ||

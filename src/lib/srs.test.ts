@@ -8,6 +8,7 @@ import {
   createCard,
   formatDuration,
   isDue,
+  isLeech,
   maturityOf,
   penalize,
   previewIntervals,
@@ -167,8 +168,7 @@ describe('penalize (wrong answer in practice modes)', () => {
   })
 })
 
-describe('maturity', () => {
-  it('classifies new / learning / young / mature', () => {
+describe('maturity', () => {  it('classifies new / learning / young / mature', () => {
     expect(maturityOf(undefined)).toBe('new')
     expect(maturityOf(createCard('x', NOW))).toBe('new')
     expect(maturityOf(rate(createCard('x', NOW), 'good', NOW, rng05))).toBe('learning')
@@ -220,5 +220,15 @@ describe('buildQueue', () => {
 
   it('isDue treats new cards as not due', () => {
     expect(isDue(createCard('x', NOW - DAY_MS), NOW)).toBe(false)
+  })
+})
+
+describe('leech', () => {
+  it('flags cards at or above the lapse threshold', () => {
+    expect(isLeech(undefined)).toBe(false)
+    expect(isLeech(createCard('x', NOW))).toBe(false)
+    expect(isLeech(reviewCard({ lapses: 7 }))).toBe(false)
+    expect(isLeech(reviewCard({ lapses: 8 }))).toBe(true)
+    expect(isLeech(reviewCard({ lapses: 42 }))).toBe(true)
   })
 })

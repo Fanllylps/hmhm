@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import PageHeader from '../components/PageHeader'
 import { type KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { pickChoices, usePracticePool } from '../lib/practice'
+import { leechPool, pickChoices, usePracticePool } from '../lib/practice'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
@@ -16,6 +17,9 @@ const EN = {
     `Endless rounds from your pool of ${n} kana. Questions flip direction at random — miss one and it comes back sooner in Review.`,
   startBtn: 'Start quiz',
   idleHint: 'Enter to start · 1–4 to answer',
+  drillTitle: 'Leech drill',
+  drillIntro: (n: number) =>
+    `Focused rounds on your ${n} toughest kana. Questions come only from your leeches — distractors from the full pool. Nail them here and they calm down in Review too.`,
   streak: 'Streak',
   best: 'Best',
   answered: 'Answered',
@@ -35,6 +39,9 @@ const ID: typeof EN = {
     `Ronde tanpa akhir dari ${n} kana di pool-mu. Arah pertanyaan berganti secara acak — kalau salah, kana itu muncul lagi lebih cepat di Review.`,
   startBtn: 'Mulai quiz',
   idleHint: 'Enter untuk mulai · Jawab dengan 1–4',
+  drillTitle: 'Drill kartu bandel',
+  drillIntro: (n: number) =>
+    `Ronde fokus untuk ${n} kana tersulitmu. Pertanyaan hanya dari kartu bandelmu — pengecoh dari pool penuh. Taklukkan di sini, mereka ikut jinak di Review.`,
   streak: 'Runtutan',
   best: 'Terbaik',
   answered: 'Dijawab',
@@ -60,12 +67,12 @@ interface Question {
   direction: Direction
 }
 
-function nextQuestion(pool: KanaEntry[], lastId: string | null): Question {
+function nextQuestion(pool: KanaEntry[], lastId: string | null, choicePool?: KanaEntry[]): Question {
   const candidates = pool.length > 1 ? pool.filter((e) => e.id !== lastId) : pool
   const entry = candidates[Math.floor(Math.random() * candidates.length)]
   return {
     entry,
-    choices: pickChoices(entry, pool, 4),
+    choices: pickChoices(entry, choicePool ?? pool, 4),
     direction: Math.random() < 0.5 ? 'kana' : 'romaji',
   }
 }
@@ -109,11 +116,19 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 export default function QuizPage() {
   const livePool = usePracticePool()
   const recordPractice = useStore((s) => s.recordPractice)
+  const cards = useStore((s) => s.cards)
   const lang = useLang()
   const t = STR[lang]
+  const [params] = useSearchParams()
+
+  /** Leech drill (?drill=leech): questions only from lapse-heavy cards. */
+  const leeches = useMemo(() => leechPool(cards), [cards])
+  const drill = params.get('drill') === 'leech' && leeches.length >= 2
 
   /** Snapshot of the practice pool, frozen at game start. */
   const [pool, setPool] = useState<KanaEntry[] | null>(null)
+  /** Distractor source: full pool in drill mode so tiny leech sets still get 4 options. */
+  const choicePoolRef = useRef<KanaEntry[]>([])
   const [question, setQuestion] = useState<Question | null>(null)
   const [round, setRound] = useState(0)
   /** id of the picked choice while feedback is showing, null otherwise. */
@@ -134,11 +149,12 @@ export default function QuizPage() {
   )
 
   const start = useCallback(() => {
-    const snapshot = livePool
+    const snapshot = drill ? leeches : livePool
+    choicePoolRef.current = drill ? [...leeches, ...livePool] : snapshot
     setPool(snapshot)
-    setQuestion(nextQuestion(snapshot, null))
+    setQuestion(nextQuestion(snapshot, null, choicePoolRef.current))
     setRound(1)
-  }, [livePool])
+  }, [drill, leeches, livePool])
 
   const pick = useCallback(
     (choice: KanaEntry) => {
@@ -161,7 +177,7 @@ export default function QuizPage() {
         timerRef.current = null
         setPicked(null)
         setRound((r) => r + 1)
-        setQuestion(nextQuestion(pool, question.entry.id))
+        setQuestion(nextQuestion(pool, question.entry.id, choicePoolRef.current))
       }, ADVANCE_MS)
     },
     [question, pool, picked, streak, recordPractice],
@@ -200,8 +216,10 @@ export default function QuizPage() {
             <span className="text-2xl text-muted">⇄</span>
             <span className="text-5xl font-semibold tracking-wide">a</span>
           </div>
-          <h2 className="mt-7 text-lg font-semibold">{t.ready}</h2>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.intro(livePool.length)}</p>
+          <h2 className="mt-7 text-lg font-semibold">{drill ? t.drillTitle : t.ready}</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+            {drill ? t.drillIntro(leeches.length) : t.intro(livePool.length)}
+          </p>
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={start}
@@ -221,7 +239,7 @@ export default function QuizPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader title={t.title} jp="選択" subtitle={t.subtitle} backTo="/practice" />
+      <PageHeader title={t.title} jp="選択" subtitle={drill ? t.drillTitle : t.subtitle} backTo="/practice" />
 
       <div className="mb-5 grid grid-cols-4 divide-x divide-hairline rounded-2xl border border-hairline bg-surface py-3 shadow-soft">
         <Stat label={t.streak}>

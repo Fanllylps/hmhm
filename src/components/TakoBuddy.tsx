@@ -16,6 +16,7 @@ interface BuddyStrings {
   aria: string
   due: (n: number) => string
   streak: (n: number) => string
+  rescue: (n: number) => string
   lines: string[]
 }
 
@@ -23,6 +24,7 @@ const EN: BuddyStrings = {
   aria: 'Tako (drag me around!)',
   due: (n) => `${n} card${n === 1 ? '' : 's'} waiting in Review! Charge! ⚔️`,
   streak: (n) => `A ${n}-day streak?! You're a machine! 🔥`,
+  rescue: (n) => `Your ${n}-day streak dies tonight! One quick review saves it! 🔥`,
   lines: [
     'Fun fact: つ is a wave — "tsu"-nami! 🌊',
     'ん is the only kana with no vowel. Special kid. ✨',
@@ -44,6 +46,7 @@ const ID: BuddyStrings = {
   aria: 'Tako (seret aku ke mana saja!)',
   due: (n) => `Ada ${n} kartu menunggu di Review! Serbu! ⚔️`,
   streak: (n) => `Streak ${n} hari?! Kamu mesin! 🔥`,
+  rescue: (n) => `Streak ${n} harimu hangus malam ini! Satu review cepat menyelamatkannya! 🔥`,
   lines: [
     'Tahu nggak? つ itu kayak ombak — "tsu"-nami! 🌊',
     'ん satu-satunya kana tanpa vokal. Anak spesial. ✨',
@@ -116,7 +119,16 @@ function MoodFx({ mood }: { mood: TakoMood }) {
   return null
 }
 
-export default function TakoBuddy({ dueCount, streak }: { dueCount: number; streak: number }) {
+export default function TakoBuddy({
+  dueCount,
+  streak,
+  todayReviews,
+}: {
+  dueCount: number
+  streak: number
+  /** Reviews logged today — lets Tako nag before the streak dies. */
+  todayReviews: number
+}) {
   const lang = useLang()
   const t = STR[lang]
   const [line, setLine] = useState<string | null>(null)
@@ -129,6 +141,7 @@ export default function TakoBuddy({ dueCount, streak }: { dueCount: number; stre
   const draggingRef = useRef(false)
   const bagRef = useRef<string[]>([])
   const contextShown = useRef(false)
+  const rescueShown = useRef(false)
   const hideTimer = useRef<number | null>(null)
   const laughTimer = useRef<number | null>(null)
   const x = useMotionValue(0)
@@ -171,6 +184,17 @@ export default function TakoBuddy({ dueCount, streak }: { dueCount: number; stre
   // ---- Tako talks on his own ----
   const speakLine = useCallback(() => {
     const nextLine = (): string => {
+      // Streak rescue comes first, once per evening: a live streak with zero
+      // reviews today is about to die at midnight.
+      if (
+        !rescueShown.current &&
+        streak > 0 &&
+        todayReviews === 0 &&
+        new Date().getHours() >= 18
+      ) {
+        rescueShown.current = true
+        return t.rescue(streak)
+      }
       if (!contextShown.current) {
         contextShown.current = true
         if (dueCount > 0) return t.due(dueCount)
@@ -188,7 +212,7 @@ export default function TakoBuddy({ dueCount, streak }: { dueCount: number; stre
       hideTimer.current = null
       setLine(null)
     }, 6500)
-  }, [dueCount, streak, t])
+  }, [dueCount, streak, todayReviews, t])
 
   useEffect(() => {
     let timer: number

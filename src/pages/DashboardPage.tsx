@@ -9,6 +9,8 @@ import { dateLocale, useLang, type Lang } from '../lib/i18n'
 import { levelFromXp } from '../lib/level'
 import { shareProgressCard } from '../lib/shareCard'
 import TakoBuddy from '../components/TakoBuddy'
+import DailyQuests from '../components/DailyQuests'
+import { dayKey } from '../lib/dates'
 import { formatDuration } from '../lib/srs'
 import { computeStats, useStore } from '../stores/store'
 
@@ -237,6 +239,7 @@ export default function DashboardPage() {
   })
 
   const pending = stats.dueCount + stats.newRemaining
+  const todayReviews = state.activity[dayKey(Date.now())]?.reviews ?? 0
   const breakdown = [
     stats.dueCount > 0 && t.dueCount(stats.dueCount),
     stats.newRemaining > 0 && t.newCount(stats.newRemaining),
@@ -292,6 +295,9 @@ export default function DashboardPage() {
 
       {/* Level & XP */}
       <LevelCard xp={state.xp} streak={stats.streak} mastered={stats.mastered} totalCards={stats.totalCards} />
+
+      {/* Daily quests */}
+      <DailyQuests />
 
       {/* Stat tiles */}
       <div data-tour="stats" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -357,7 +363,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {buddyReady && <TakoBuddy dueCount={stats.dueCount} streak={stats.streak} />}
+      {buddyReady && <TakoBuddy dueCount={stats.dueCount} streak={stats.streak} todayReviews={todayReviews} />}
     </div>
   )
 }

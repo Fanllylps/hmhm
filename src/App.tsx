@@ -24,6 +24,8 @@ import StoriesPage from './pages/StoriesPage'
 import StatsPage from './pages/StatsPage'
 import AchievementWatcher from './components/AchievementWatcher'
 import Tutorial from './components/Tutorial'
+import { computeStreak, dayKey } from './lib/dates'
+import { msUntilNextReminder, sendStreakReminder } from './lib/reminders'
 
 /** Keep the document language in sync for screen readers and hyphenation. */
 function useHtmlLang() {
@@ -51,12 +53,35 @@ function useTheme() {
   }, [theme])
 }
 
+/** Evening streak-rescue nudge: at 20:00, if today has zero reviews, fire a
+ * local notification (needs the Settings opt-in + browser permission). */
+function useStreakReminder() {
+  const enabled = useStore((s) => s.settings.reminders)
+  useEffect(() => {
+    if (!enabled) return
+    let timer = 0
+    const schedule = () => {
+      timer = window.setTimeout(() => {
+        const s = useStore.getState()
+        const today = dayKey(Date.now())
+        if ((s.activity[today]?.reviews ?? 0) === 0) {
+          sendStreakReminder(computeStreak(s.activity, Date.now()), s.settings.language)
+        }
+        schedule()
+      }, msUntilNextReminder(new Date()))
+    }
+    schedule()
+    return () => window.clearTimeout(timer)
+  }, [enabled])
+}
+
 export default function App() {
   const onboarded = useStore((s) => s.onboarded)
   const tutorialSeen = useStore((s) => s.tutorialSeen)
   const tourSeen = useStore((s) => s.tourSeen)
   useTheme()
   useHtmlLang()
+  useStreakReminder()
   return (
     <MotionConfig reducedMotion="user">
       <BrowserRouter>

@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
-import { KANA, type KanaEntry } from '../data/kana'
+import { KANA, KANA_BY_ID, type KanaEntry } from '../data/kana'
+import { KANJI_BY_ID } from '../data/kanji'
+import { isLeech, type SrsCard } from './srs'
 import { activePool, useStore } from '../stores/store'
 
 export function shuffle<T>(arr: readonly T[]): T[] {
@@ -26,6 +28,21 @@ export function usePracticePool(min = 8): KanaEntry[] {
     const chosen = seen.length >= min ? seen : pool
     return chosen.length > 0 ? chosen : KANA.filter((e) => e.script === 'hiragana' && e.group === 'basic')
   }, [settings, cards, min])
+}
+
+/**
+ * Leech drill pool: kana/kanji cards at the lapse threshold, for focused
+ * Quiz rounds. Vocabulary leeches are excluded — game layouts assume short
+ * kana-like prompts with script-grouped distractors.
+ */
+export function leechPool(cards: Record<string, SrsCard>): KanaEntry[] {
+  const out: KanaEntry[] = []
+  for (const card of Object.values(cards)) {
+    if (!isLeech(card)) continue
+    const entry = KANA_BY_ID[card.id] ?? KANJI_BY_ID[card.id]
+    if (entry) out.push(entry)
+  }
+  return out
 }
 
 /**
