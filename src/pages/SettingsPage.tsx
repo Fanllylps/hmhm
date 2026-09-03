@@ -6,6 +6,11 @@ import PageHeader from '../components/PageHeader'
 import { speak } from '../lib/audio'
 import { dayKey } from '../lib/dates'
 import { haptic } from '../lib/haptics'
+import {
+  reminderPermission,
+  requestReminderPermission,
+  type ReminderPermission,
+} from '../lib/reminders'
 import { useLang } from '../lib/i18n'
 import {
   buildExportPayload,
@@ -45,6 +50,11 @@ const EN = {
   hapticsDesc: 'Vibrate on answers and unlocks. Android — iPhones ignore this.',
   lenient: 'Lenient romaji',
   lenientDesc: 'Accept shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…',
+  reminders: 'Streak reminder',
+  remindersDesc: 'Nudge at 8pm when today has zero reviews.',
+  notifyBtn: 'Enable notifications',
+  notifyOn: 'Notifications on — see you at 8pm.',
+  notifyBlocked: 'Notifications are blocked — allow them in the browser settings first.',
   replay: "Tako's guide",
   replayDesc: 'Replay the tutorial and dashboard tour.',
   replayBtn: 'Replay',
@@ -98,6 +108,11 @@ const ID: typeof EN = {
   hapticsDesc: 'Bergetar saat menjawab. Khusus Android — iPhone mengabaikannya.',
   lenient: 'Romaji longgar',
   lenientDesc: 'Terima shi/si, chi/ti, tsu/tu, fu/hu, ja/jya…',
+  reminders: 'Pengingat streak',
+  remindersDesc: 'Ingatkan jam 8 malam kalau hari ini nol review.',
+  notifyBtn: 'Aktifkan notifikasi',
+  notifyOn: 'Notifikasi aktif — sampai jumpa jam 8 malam.',
+  notifyBlocked: 'Notifikasi diblokir — izinkan dulu di setelan browser.',
   replay: 'Panduan Tako',
   replayDesc: 'Putar ulang tutorial dan tur beranda.',
   replayBtn: 'Putar ulang',
@@ -321,6 +336,11 @@ export default function SettingsPage() {
     if (enabled) speak('こんにちは', true)
   }
 
+  const [notifyPerm, setNotifyPerm] = useState<ReminderPermission>(() => reminderPermission())
+  const enableNotifications = async () => {
+    setNotifyPerm(await requestReminderPermission())
+  }
+
   const handleExport = () => {
     const payload = buildExportPayload(useStore.getState())
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -466,6 +486,36 @@ export default function SettingsPage() {
           checked={settings.lenient}
           onChange={(next) => updateSettings({ lenient: next })}
         />
+        <SwitchRow
+          label={t.reminders}
+          description={t.remindersDesc}
+          checked={settings.reminders}
+          onChange={(next) => {
+            updateSettings({ reminders: next })
+            if (next) setNotifyPerm(reminderPermission())
+          }}
+        />
+        {settings.reminders && notifyPerm !== 'granted' && (
+          <div className="flex items-center justify-between gap-4 px-5 py-3.5">
+            <div className="min-w-0 text-sm text-muted">
+              {notifyPerm === 'denied' || notifyPerm === 'unsupported'
+                ? t.notifyBlocked
+                : t.notifyBtn}
+            </div>
+            {notifyPerm === 'default' && (
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={enableNotifications}
+                className="min-h-[44px] shrink-0 rounded-xl bg-sumi px-4 text-sm font-medium text-surface"
+              >
+                {t.notifyBtn}
+              </motion.button>
+            )}
+          </div>
+        )}
+        {settings.reminders && notifyPerm === 'granted' && (
+          <div className="px-5 py-3 text-sm text-matcha">{t.notifyOn}</div>
+        )}
         <div className="flex items-center justify-between gap-4 px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-3.5">
             <span aria-hidden className="w-8 shrink-0 text-center font-kana text-2xl text-muted">

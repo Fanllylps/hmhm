@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import PageHeader from '../components/PageHeader'
 import { studyEntry } from '../data/study'
 import { addDays, dayKey } from '../lib/dates'
 import { dateLocale, meaningFor, useLang } from '../lib/i18n'
-import { isDue, maturityOf, type Maturity } from '../lib/srs'
+import { leechPool } from '../lib/practice'
+import { isDue, isLeech, maturityOf, type Maturity } from '../lib/srs'
 import { activePool, useStore, type Lang } from '../stores/store'
 
 const EN = {
@@ -27,6 +29,8 @@ const EN = {
   hardestAside: 'most lapses',
   lapses: (n: number) => `${n} lapse${n === 1 ? '' : 's'}`,
   misses: (n: number) => `${n} misses`,
+  leech: 'Leech',
+  drillLeeches: 'Drill leeches →',
   noLapses: 'No lapses yet — nothing is giving you trouble. 頑張って!',
 }
 
@@ -47,6 +51,8 @@ const ID: typeof EN = {
   hardestAside: 'paling sering lupa',
   lapses: (n: number) => `${n}× lupa`,
   misses: (n: number) => `${n}× salah`,
+  leech: 'Bandel',
+  drillLeeches: 'Drill kartu bandel →',
   noLapses: 'Belum ada yang bikin kesulitan — mantap. 頑張って!',
 }
 
@@ -147,6 +153,9 @@ export default function StatsPage() {
     [cards, customVocab],
   )
 
+  // ---- Leech drill: enough lapse-heavy kana/kanji for a focused Quiz? ----
+  const leeches = useMemo(() => leechPool(cards), [cards])
+
   const locale = dateLocale(lang)
 
   return (
@@ -245,25 +254,42 @@ export default function StatsPage() {
         {hardest.length === 0 ? (
           <p className="text-sm text-muted">{t.noLapses}</p>
         ) : (
-          <div className="divide-y divide-hairline">
-            {hardest.map(({ card, entry, misses }) => (
-              <div key={card.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                <span className="w-14 shrink-0 font-kana text-2xl leading-none">
-                  {entry!.kana}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">{entry!.romaji}</div>
-                  {entry!.meaning && (
-                    <div className="truncate text-xs text-muted">{meaningFor(entry!, lang)}</div>
-                  )}
+          <>
+            {leeches.length >= 2 && (
+              <Link
+                to="/practice/quiz?drill=leech"
+                className="mb-3 block rounded-xl bg-vermilion px-4 py-2.5 text-center text-sm font-semibold text-surface transition-transform active:scale-[0.98]"
+              >
+                {t.drillLeeches}
+              </Link>
+            )}
+            <div className="divide-y divide-hairline">
+              {hardest.map(({ card, entry, misses }) => (
+                <div key={card.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span className="w-14 shrink-0 font-kana text-2xl leading-none">
+                    {entry!.kana}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {entry!.romaji}
+                      {isLeech(card) && (
+                        <span className="rounded-full bg-vermilion/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-vermilion">
+                          {t.leech}
+                        </span>
+                      )}
+                    </div>
+                    {entry!.meaning && (
+                      <div className="truncate text-xs text-muted">{meaningFor(entry!, lang)}</div>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-sm font-semibold text-vermilion">{t.lapses(card.lapses)}</div>
+                    <div className="text-xs text-muted">{t.misses(misses)}</div>
+                  </div>
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="text-sm font-semibold text-vermilion">{t.lapses(card.lapses)}</div>
-                  <div className="text-xs text-muted">{t.misses(misses)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </Card>
     </div>

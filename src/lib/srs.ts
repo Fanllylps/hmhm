@@ -44,6 +44,8 @@ export const HARD_MULTIPLIER = 1.2
 export const EASY_BONUS = 1.3
 /** Review cards with an interval at or above this many days count as mature. */
 export const MATURE_INTERVAL = 21
+/** Cards with this many lapses count as leeches (stubborn trouble cards). */
+export const LEECH_LAPSES = 8
 export const FUZZ = 0.05
 
 export const MINUTE_MS = 60_000
@@ -172,6 +174,11 @@ export function maturityOf(card: SrsCard | undefined): Maturity {
   if (!card || card.phase === 'new') return 'new'
   if (card.phase === 'learning' || card.phase === 'relearning') return 'learning'
   return card.interval >= MATURE_INTERVAL ? 'mature' : 'young'
+}
+
+/** Anki-style leech: a card that keeps lapsing and needs focused drilling. */
+export function isLeech(card: SrsCard | undefined): boolean {
+  return card !== undefined && card.lapses >= LEECH_LAPSES
 }
 
 export function formatDuration(ms: number): string {
