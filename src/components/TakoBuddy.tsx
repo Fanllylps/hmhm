@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useMotionValue } from 'framer-motion'
 import Tako, { type TakoMood } from './Tako'
 import { haptic } from '../lib/haptics'
@@ -7,22 +8,30 @@ import { useStore, type Lang } from '../stores/store'
 
 /**
  * Tako as a living desk pet on the dashboard: drag him anywhere (the spot is
- * remembered), he cycles through cute activities on his own — smiling,
- * giggling, typing on a tiny laptop, dozing off — and chats by himself every
- * so often. Tapping him never shows text; he just cracks up.
+ * remembered), his mood follows your study state (fired up when reviews pile
+ * up, dozy late at night), he chats by himself every so often, and tapping
+ * him asks for a contextual tip — due reminders carry a Review shortcut.
  */
 
 interface BuddyStrings {
   aria: string
   due: (n: number) => string
   streak: (n: number) => string
+  reviewCta: string
   lines: string[]
+}
+
+interface BubbleLine {
+  text: string
+  /** Optional deep-link action, e.g. a due reminder pointing at Review. */
+  action?: { label: string; to: string }
 }
 
 const EN: BuddyStrings = {
   aria: 'Tako (drag me around!)',
   due: (n) => `${n} card${n === 1 ? '' : 's'} waiting in Review! Charge! ⚔️`,
   streak: (n) => `A ${n}-day streak?! You're a machine! 🔥`,
+  reviewCta: 'Start Review →',
   lines: [
     'Fun fact: つ is a wave — "tsu"-nami! 🌊',
     'ん is the only kana with no vowel. Special kid. ✨',
@@ -44,6 +53,7 @@ const ID: BuddyStrings = {
   aria: 'Tako (seret aku ke mana saja!)',
   due: (n) => `Ada ${n} kartu menunggu di Review! Serbu! ⚔️`,
   streak: (n) => `Streak ${n} hari?! Kamu mesin! 🔥`,
+  reviewCta: 'Mulai Review →',
   lines: [
     'Tahu nggak? つ itu kayak ombak — "tsu"-nami! 🌊',
     'ん satu-satunya kana tanpa vokal. Anak spesial. ✨',
@@ -119,7 +129,7 @@ function MoodFx({ mood }: { mood: TakoMood }) {
 export default function TakoBuddy({ dueCount, streak }: { dueCount: number; streak: number }) {
   const lang = useLang()
   const t = STR[lang]
-  const [line, setLine] = useState<string | null>(null)
+  const [line, setLine] = useState<BubbleLine | null>(null)
   const [tick, setTick] = useState(0)
   const [mood, setMood] = useState<TakoMood>('idle')
   const [bubble, setBubble] = useState({ above: true, alignRight: true })
@@ -159,36 +169,65 @@ export default function TakoBuddy({ dueCount, streak }: { dueCount: number; stre
     requestAnimationFrame(updateBubblePlacement)
   }, [x, y, updateBubblePlacement])
 
+  // ---- mood follows your study state, not pure chance ----
+  const contextMood = useCallback((): TakoMood => {
+    if (dueCount >= 10) return 'happy' // big pile waiting — fired up for battle
+    const hour = new Date().getHours()
+    if (hour >= 22 || hour < 5) return 'sleepy' // late night — dozy buddy
+    return MOOD_POOL[Math.floor(Math.random() * MOOD_POOL.length)]
+  }, [dueCount])
+
   // ---- idle activity cycle ----
   useEffect(() => {
     const id = window.setInterval(() => {
       if (draggingRef.current || laughTimer.current !== null) return
-      setMood(MOOD_POOL[Math.floor(Math.random() * MOOD_POOL.length)])
+      setMood(contextMood())
     }, 9000)
     return () => clearInterval(id)
+  }, [contextMood])
+
+  // ---- short giggle that always settles back to idle ----
+  const laughBriefly = useCallback(() => {
+    setMood('laugh')
+    if (laughTimer.current !== null) clearTimeout(laughTimer.current)
+    laughTimer.current = window.setTimeout(() => {
+      laughTimer.current = null
+      setMood('idle')
+    }, 2200)
   }, [])
 
   // ---- Tako talks on his own ----
   const speakLine = useCallback(() => {
-    const nextLine = (): string => {
+    const nextLine = (): { line: BubbleLine; kind: 'due' | 'streak' | 'tip' } => {
       if (!contextShown.current) {
         contextShown.current = true
-        if (dueCount > 0) return t.due(dueCount)
-        if (streak >= 3) return t.streak(streak)
+        if (dueCount > 0) {
+          return {
+            line: { text: t.due(dueCount), action: { label: t.reviewCta, to: '/review' } },
+            kind: 'due',
+          }
+        }
+        if (streak >= 3) {
+          return { line: { text: t.streak(streak) }, kind: 'streak' }
+        }
       }
       if (bagRef.current.length === 0) {
         bagRef.current = [...t.lines].sort(() => Math.random() - 0.5)
       }
-      return bagRef.current.pop()!
+      return { line: { text: bagRef.current.pop()! }, kind: 'tip' }
     }
-    setLine(nextLine())
+    const { line: next, kind } = nextLine()
+    setLine(next)
     setTick((n) => n + 1)
+    // Match the face to the news: due pile = fired up, streak = cracking up.
+    if (kind === 'due') setMood('happy')
+    else if (kind === 'streak') laughBriefly()
     if (hideTimer.current !== null) clearTimeout(hideTimer.current)
     hideTimer.current = window.setTimeout(() => {
       hideTimer.current = null
       setLine(null)
     }, 6500)
-  }, [dueCount, streak, t])
+  }, [dueCount, streak, t, laughBriefly])
 
   useEffect(() => {
     let timer: number
@@ -210,15 +249,11 @@ export default function TakoBuddy({ dueCount, streak }: { dueCount: number; stre
     [],
   )
 
-  // ---- tap = giggle only, never text ----
+  // ---- tap = giggle AND talk: contextual tip first, then random facts ----
   const giggle = () => {
     haptic('tap', useStore.getState().settings.haptics)
-    setMood('laugh')
-    if (laughTimer.current !== null) clearTimeout(laughTimer.current)
-    laughTimer.current = window.setTimeout(() => {
-      laughTimer.current = null
-      setMood('idle')
-    }, 2200)
+    speakLine()
+    laughBriefly()
   }
 
   return (
@@ -257,7 +292,15 @@ export default function TakoBuddy({ dueCount, streak }: { dueCount: number; stre
                 bubble.above ? 'bottom-full mb-2' : 'top-full mt-2'
               } ${bubble.alignRight ? 'right-0' : 'left-0'}`}
             >
-              {line}
+              {line.text}
+              {line.action && (
+                <Link
+                  to={line.action.to}
+                  className="mt-2.5 block rounded-xl bg-vermilion px-3 py-2 text-center text-sm font-semibold text-surface transition-transform active:scale-[0.98]"
+                >
+                  {line.action.label}
+                </Link>
+              )}
               <span
                 aria-hidden
                 className={`absolute h-3.5 w-3.5 rotate-45 rounded-sm bg-surface ${
