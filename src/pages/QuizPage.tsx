@@ -280,17 +280,21 @@ export default function QuizPage() {
             onDistractors={setDistractors}
             showDistractors
           />
-          <motion.button
-            whileTap={canStart ? { scale: 0.98 } : undefined}
-            onClick={start}
-            disabled={!canStart}
-            aria-disabled={!canStart}
-            className="mt-6 w-full rounded-2xl bg-vermilion py-3.5 font-medium text-surface disabled:opacity-40 sm:w-auto sm:px-12"
-          >
-            {t.startBtn}
-          </motion.button>
-          {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
-          <p className="mt-4 hidden text-xs text-muted sm:block">{t.idleHint}</p>
+          {/* Sticky CTA: stays reachable one-handed while the row list scrolls.
+              In-flow positioning reserves its space, so it never covers content. */}
+          <div className="sticky bottom-0 -mx-6 mt-8 bg-gradient-to-t from-surface from-60% via-surface/90 to-transparent px-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-8">
+            <motion.button
+              whileTap={canStart ? { scale: 0.98 } : undefined}
+              onClick={start}
+              disabled={!canStart}
+              aria-disabled={!canStart}
+              className="w-full rounded-2xl bg-vermilion py-3.5 font-medium text-surface disabled:opacity-40 sm:w-auto sm:px-12"
+            >
+              {t.startBtn}
+            </motion.button>
+            {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
+          </div>
+          <p className="mt-4 hidden text-xs text-muted md:block">{t.idleHint}</p>
         </motion.div>
       </div>
     )
