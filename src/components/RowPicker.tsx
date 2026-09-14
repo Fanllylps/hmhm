@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toKatakana } from '../data/kana'
-import { ROWS, type DistractorScope, type RowOrder, type RowScript } from '../lib/rowscope'
+import { ROWS, type DistractorScope, type QuizDirection, type RowOrder, type RowScript } from '../lib/rowscope'
 
 export interface RowPickerText {
   rowsLabel: string
@@ -13,6 +13,8 @@ export interface RowPickerText {
   orders: Record<RowOrder, string>
   distractorsLabel: string
   distractors: Record<DistractorScope, string>
+  directionLabel?: string
+  directions?: Record<QuizDirection, string>
   selectedCount: (n: number) => string
 }
 
@@ -29,6 +31,9 @@ interface RowPickerProps {
   distractors: DistractorScope
   onDistractors: (d: DistractorScope) => void
   showDistractors: boolean
+  direction?: QuizDirection
+  onDirection?: (d: QuizDirection) => void
+  showDirections?: boolean
 }
 
 const GROUPS = ['basic', 'dakuten', 'handakuten', 'yoon'] as const
@@ -166,6 +171,7 @@ export default function RowPicker(props: RowPickerProps) {
     all.script = true
     all.order = true
     all.distractors = true
+    all.direction = true
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
       for (const g of GROUPS) {
         if (!ROWS.some((r) => r.group === g && selected.has(r.key))) all[g] = false
@@ -299,6 +305,24 @@ export default function RowPicker(props: RowPickerProps) {
             value={props.distractors}
             onPick={props.onDistractors}
             labelOf={(d) => t.distractors[d]}
+          />
+        </Section>
+      )}
+
+      {props.showDirections && props.direction !== undefined && props.onDirection !== undefined && (
+        <Section
+          id="rowdirection"
+          title={t.directionLabel ?? 'Direction'}
+          meta={(t.directions?.[props.direction]) ?? props.direction}
+          open={open.direction}
+          onToggle={() => toggle('direction')}
+        >
+          <Segmented
+            options={['kana', 'romaji', 'both'] as const}
+            columns={3}
+            value={props.direction}
+            onPick={props.onDirection}
+            labelOf={(d) => t.directions?.[d] ?? d}
           />
         </Section>
       )}

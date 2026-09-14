@@ -3,6 +3,7 @@ import { KANA, type KanaEntry } from '../data/kana'
 export type RowScript = 'hiragana' | 'katakana' | 'both'
 export type RowOrder = 'sequential' | 'random'
 export type DistractorScope = 'row' | 'mixed'
+export type QuizDirection = 'kana' | 'romaji' | 'both'
 
 export interface RowDef {
   key: string

@@ -12,6 +12,7 @@ import {
   orderEntries,
   rowEntries,
   type DistractorScope,
+  type QuizDirection,
   type RowOrder,
   type RowScript,
 } from '../lib/rowscope'
@@ -20,9 +21,10 @@ import { useStore, type Lang } from '../stores/store'
 const EN = {
   title: 'Quiz',
   subtitle: 'Multiple choice, both directions',
+  subtitleOne: 'Multiple choice, one direction',
   ready: 'Pick your rows',
   intro: (n: number) =>
-    `Drill just the rows you choose — ${n} kana in this pool. In order follows the gojuon sequence, shuffle mixes them. Scores here stay separate from Review.`,
+    `Choose how you want to answer, then pick the rows to practise — ${n} kana in this pool. Scores here stay separate from Review.`,
   startBtn: 'Start quiz',
   idleHint: 'Enter to start · 1–4 to answer',
   emptyRows: 'Pick at least 1 row to start',
@@ -36,6 +38,10 @@ const EN = {
   orders: { sequential: 'In order', random: 'Shuffle' },
   distractorsLabel: 'Wrong answers',
   distractors: { row: 'Same row', mixed: 'All kana' },
+  directionLabel: 'How to answer',
+  directions: { kana: 'Kana → Reading', romaji: 'Reading → Kana', both: 'Mixed' },
+  badgeKana: 'Kana → Reading',
+  badgeRomaji: 'Reading → Kana',
   selectedCount: (n: number) => `${n} rows selected`,
   streak: 'Streak',
   best: 'Best',
@@ -51,9 +57,10 @@ const EN = {
 const ID: typeof EN = {
   title: 'Quiz',
   subtitle: 'Pilihan ganda, dua arah',
+  subtitleOne: 'Pilihan ganda, satu arah',
   ready: 'Pilih barismu',
   intro: (n: number) =>
-    `Latihan khusus baris yang kamu pilih — ${n} kana di pool ini. Berurutan mengikuti urutan gojuon, acak mencampurnya. Nilai di sini tidak mengubah Review.`,
+    `Pilih dulu cara menjawab, lalu baris yang ingin dilatih — ada ${n} kana. Nilai di sini tidak mengubah Review.`,
   startBtn: 'Mulai quiz',
   idleHint: 'Enter untuk mulai · Jawab dengan 1–4',
   emptyRows: 'Pilih minimal 1 baris untuk mulai',
@@ -67,6 +74,10 @@ const ID: typeof EN = {
   orders: { sequential: 'Berurutan', random: 'Acak' },
   distractorsLabel: 'Jawaban salah',
   distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  directionLabel: 'Cara menjawab',
+  directions: { kana: 'Kana → Bacaan', romaji: 'Bacaan → Kana', both: 'Campur' },
+  badgeKana: 'Kana → Bacaan',
+  badgeRomaji: 'Bacaan → Kana',
   selectedCount: (n: number) => `${n} baris dipilih`,
   streak: 'Runtutan',
   best: 'Terbaik',
@@ -97,19 +108,25 @@ function nextQuestion(
   pool: KanaEntry[],
   lastId: string | null,
   scope: DistractorScope,
+  dirPref: QuizDirection,
 ): Question {
   const candidates = pool.length > 1 ? pool.filter((e) => e.id !== lastId) : pool
   const entry = candidates[Math.floor(Math.random() * candidates.length)]
-  return askFor(entry, pool, scope)
+  return askFor(entry, pool, scope, dirPref)
 }
 
 /** Build a question for a fixed entry (used by sequential order). */
-function askFor(entry: KanaEntry, pool: KanaEntry[], scope: DistractorScope): Question {
+function askFor(
+  entry: KanaEntry,
+  pool: KanaEntry[],
+  scope: DistractorScope,
+  dirPref: QuizDirection = 'both',
+): Question {
   const prefer = scope === 'row' ? pool.filter((e) => e.row === entry.row) : undefined
   return {
     entry,
     choices: pickChoices(entry, pool, 4, prefer),
-    direction: Math.random() < 0.5 ? 'kana' : 'romaji',
+    direction: dirPref === 'both' ? (Math.random() < 0.5 ? 'kana' : 'romaji') : dirPref,
   }
 }
 
@@ -157,6 +174,7 @@ export default function QuizPage() {
   const [rowScript, setRowScript] = useState<RowScript>('both')
   const [rowOrder, setRowOrder] = useState<RowOrder>('random')
   const [distractors, setDistractors] = useState<DistractorScope>('mixed')
+  const [directionPref, setDirectionPref] = useState<QuizDirection>('kana')
   const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
 
   /** Snapshot of the scoped pool, frozen at game start. */
@@ -189,12 +207,12 @@ export default function QuizPage() {
     setPool(snapshot)
     if (rowOrder === 'sequential') {
       seqRef.current = 1
-      setQuestion(askFor(snapshot[0], snapshot, distractors))
+      setQuestion(askFor(snapshot[0], snapshot, distractors, directionPref))
     } else {
-      setQuestion(nextQuestion(snapshot, null, distractors))
+      setQuestion(nextQuestion(snapshot, null, distractors, directionPref))
     }
     setRound(1)
-  }, [scoped, rowOrder, distractors])
+  }, [scoped, rowOrder, distractors, directionPref])
 
   const pick = useCallback(
     (choice: KanaEntry) => {
@@ -219,13 +237,13 @@ export default function QuizPage() {
         if (rowOrder === 'sequential') {
           const entry = pool[seqRef.current % pool.length]
           seqRef.current += 1
-          setQuestion(askFor(entry, pool, distractors))
+          setQuestion(askFor(entry, pool, distractors, directionPref))
         } else {
-          setQuestion(nextQuestion(pool, question.entry.id, distractors))
+          setQuestion(nextQuestion(pool, question.entry.id, distractors, directionPref))
         }
       }, ADVANCE_MS)
     },
-    [question, pool, picked, streak, rowOrder, distractors],
+    [question, pool, picked, streak, rowOrder, distractors, directionPref],
   )
 
   useKeyDown(
@@ -246,13 +264,14 @@ export default function QuizPage() {
   )
 
   // ---------- Idle / start screen ----------
+  const headerSubtitle = directionPref === 'both' ? t.subtitle : t.subtitleOne
   if (question === null || pool === null) {
     const toggleRow = (key: string) =>
       setRowKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
     const canStart = scoped.length > 0
     return (
       <div className="mx-auto max-w-xl">
-        <PageHeader title={t.title} jp="選択" subtitle={t.subtitle} backTo="/practice" />
+        <PageHeader title={t.title} jp="選択" subtitle={headerSubtitle} backTo="/practice" />
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -279,6 +298,9 @@ export default function QuizPage() {
             distractors={distractors}
             onDistractors={setDistractors}
             showDistractors
+            direction={directionPref}
+            onDirection={setDirectionPref}
+            showDirections
           />
           {/* Sticky CTA: stays reachable one-handed while the row list scrolls.
               In-flow positioning reserves its space, so it never covers content. */}
@@ -306,7 +328,7 @@ export default function QuizPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader title={t.title} jp="選択" subtitle={t.subtitle} backTo="/practice" />
+      <PageHeader title={t.title} jp="選択" subtitle={headerSubtitle} backTo="/practice" />
 
       <div className="mb-5 grid grid-cols-4 divide-x divide-hairline rounded-2xl border border-hairline bg-surface py-3 shadow-soft">
         <Stat label={t.streak}>
@@ -333,13 +355,28 @@ export default function QuizPage() {
           exit={{ opacity: 0, x: -24 }}
           transition={{ duration: 0.18 }}
         >
-          <div className="flex h-56 flex-col items-center justify-center rounded-2xl border border-hairline bg-surface shadow-soft sm:h-64">
+          <div
+            className={`flex h-56 flex-col items-center justify-center rounded-2xl border shadow-soft sm:h-64 ${
+              question.direction === 'kana'
+                ? 'border-hairline bg-surface'
+                : 'border-matcha/40 bg-matcha/5'
+            }`}
+          >
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide ${
+                question.direction === 'kana'
+                  ? 'bg-vermilion/10 text-vermilion'
+                  : 'bg-matcha/15 text-matcha'
+              }`}
+            >
+              {question.direction === 'kana' ? t.badgeKana : t.badgeRomaji}
+            </span>
             {question.direction === 'kana' ? (
-              <span className="font-kana text-7xl leading-none sm:text-8xl">
+              <span className="mt-4 font-kana text-7xl leading-none sm:text-8xl">
                 {question.entry.kana}
               </span>
             ) : (
-              <span className="text-6xl font-semibold leading-none tracking-wide sm:text-7xl">
+              <span className="mt-4 text-6xl font-semibold leading-none tracking-wide sm:text-7xl">
                 {question.entry.romaji}
               </span>
             )}
