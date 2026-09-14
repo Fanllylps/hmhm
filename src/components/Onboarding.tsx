@@ -79,10 +79,17 @@ export default function Onboarding() {
             onClick={() => updateSettings({ language: l })}
             aria-pressed={lang === l}
             className={`relative rounded-full px-2.5 py-1 uppercase transition-colors duration-200 ${
-              lang === l ? 'bg-sumi text-surface' : 'text-muted hover:text-sumi'
+              lang === l ? 'text-surface' : 'text-muted hover:text-sumi'
             }`}
           >
-            {l}
+            {lang === l && (
+              <motion.span
+                layoutId="onboarding-lang-pill"
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                className="absolute inset-0 rounded-full bg-sumi"
+              />
+            )}
+            <span className="relative">{l}</span>
           </button>
         ))}
       </div>
