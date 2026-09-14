@@ -110,10 +110,11 @@ export default function Layout() {
             swaps as soon as the route changes, so an exiting wrapper would be
             left holding the *new* page — and could stay stuck at exit opacity. */}
         <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, y: 8 }}
+          key={`${location.pathname}:${lang}`}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
+          transition={{ duration: 0.24, ease: 'easeOut' }}
+          style={{ willChange: 'opacity, transform' }}
         >
           <Outlet />
         </motion.div>

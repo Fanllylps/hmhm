@@ -35,10 +35,22 @@
   }
   body {
     @apply bg-washi text-sumi font-sans antialiased;
+    transition: background-color 220ms ease, color 220ms ease;
     /* No double-tap zoom delay on rapid game taps… */
     touch-action: manipulation;
     /* …and no accidental pull-to-refresh mid-game. */
     overscroll-behavior-y: contain;
+  }
+  :where(.bg-washi, .bg-surface, .text-sumi, .text-muted, .border-hairline) {
+    transition-property: background-color, color, border-color;
+    transition-duration: 220ms;
+    transition-timing-function: ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body,
+    :where(.bg-washi, .bg-surface, .text-sumi, .text-muted, .border-hairline) {
+      transition-duration: 0ms;
+    }
   }
   :focus-visible {
     @apply outline-none ring-2 ring-vermilion/50 ring-offset-2 ring-offset-washi rounded-lg;

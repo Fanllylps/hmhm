@@ -78,8 +78,8 @@ export default function Onboarding() {
             key={l}
             onClick={() => updateSettings({ language: l })}
             aria-pressed={lang === l}
-            className={`rounded-full px-2.5 py-1 uppercase transition-colors ${
-              lang === l ? 'bg-sumi text-surface' : 'text-muted'
+            className={`relative rounded-full px-2.5 py-1 uppercase transition-colors duration-200 ${
+              lang === l ? 'bg-sumi text-surface' : 'text-muted hover:text-sumi'
             }`}
           >
             {l}
@@ -91,7 +91,7 @@ export default function Onboarding() {
         <AnimatePresence mode="wait">
           {step === 0 && (
             <motion.div
-              key="welcome"
+              key={`welcome-${lang}`}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
