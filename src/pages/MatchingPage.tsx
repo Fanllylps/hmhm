@@ -1,18 +1,43 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import Confetti from '../components/Confetti'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { shuffle, usePracticePool } from '../lib/practice'
+import { shuffle } from '../lib/practice'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
   subtitle: 'Pair each kana with its romaji',
+  ready: 'Pick your rows',
+  intro: (n: number) =>
+    `Clear boards drawn from just the rows you choose — ${n} kana in this pool. In order pages through them six at a time, shuffle deals random boards. Scores here stay separate from Review.`,
+  start: 'Start matching',
+  changeRows: 'Change rows',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   bestChip: (time: string) => `Best ${time}`,
   time: 'Time',
   moves: 'Moves',
@@ -32,6 +57,23 @@ const EN = {
 
 const ID: typeof EN = {
   subtitle: 'Pasangkan tiap kana dengan romajinya',
+  ready: 'Pilih barismu',
+  intro: (n: number) =>
+    `Selesaikan papan yang hanya berisi baris pilihanmu — ${n} kana di pool ini. Berurutan menyajikan enam per enam, acak mengacak papan. Nilai di sini tidak mengubah Review.`,
+  start: 'Mulai matching',
+  changeRows: 'Ganti baris',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   bestChip: (time) => `Terbaik ${time}`,
   time: 'Waktu',
   moves: 'Langkah',
@@ -101,6 +143,7 @@ function CompletionCard({
   newBest,
   entries,
   onPlayAgain,
+  onChangeRows,
 }: {
   seconds: number
   moves: number
@@ -108,6 +151,7 @@ function CompletionCard({
   newBest: boolean
   entries: KanaEntry[]
   onPlayAgain: () => void
+  onChangeRows: () => void
 }) {
   const best = useStore((s) => s.best.matchingSec)
   const lang = useLang()
@@ -173,6 +217,13 @@ function CompletionCard({
           >
             {t.backToPractice}
           </Link>
+          <button
+            type="button"
+            onClick={onChangeRows}
+            className="rounded-2xl px-6 py-3 text-sm font-medium text-muted transition-colors hover:text-sumi"
+          >
+            {t.changeRows}
+          </button>
         </div>
         <p className="mt-4 hidden text-xs text-muted sm:block">{t.enterToPlayAgain}</p>
       </motion.div>
@@ -181,15 +232,17 @@ function CompletionCard({
 }
 
 export default function MatchingPage() {
-  const pool = usePracticePool()
-  const poolRef = useRef(pool)
-  poolRef.current = pool
-  const recordPractice = useStore((s) => s.recordPractice)
   const submitMatchingTime = useStore((s) => s.submitMatchingTime)
   const best = useStore((s) => s.best.matchingSec)
   const lang = useLang()
   const t = STR[lang]
 
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
+
+  const [setup, setSetup] = useState(true)
   const [roundId, setRoundId] = useState(0)
   const [round, setRound] = useState<KanaEntry[] | null>(null)
   const [tiles, setTiles] = useState<Tile[]>([])
@@ -204,8 +257,13 @@ export default function MatchingPage() {
   const [newBest, setNewBest] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
 
-  const startRound = useCallback(() => {
-    const entries = pickRound(poolRef.current, ROUND_SIZE)
+  // Frozen when leaving setup: the pool and order every round draws from.
+  const deckRef = useRef<KanaEntry[]>([])
+  const orderRef = useRef<RowOrder>('random')
+  /** Next slice start for sequential paging through the deck. */
+  const pageRef = useRef(0)
+
+  const resetBoard = (entries: KanaEntry[]) => {
     setRound(entries)
     setTiles(buildTiles(entries))
     setCleared(new Set())
@@ -218,13 +276,46 @@ export default function MatchingPage() {
     setNewBest(false)
     setShowComplete(false)
     setRoundId((r) => r + 1)
+  }
+
+  const startRound = useCallback(() => {
+    const deck = deckRef.current
+    if (deck.length === 0) return
+    if (orderRef.current === 'sequential') {
+      // Page through the gojuon order six pairs at a time, then wrap.
+      const slice: KanaEntry[] = []
+      const seen = new Set<string>()
+      let scanned = 0
+      const pos = pageRef.current
+      for (; scanned < deck.length && slice.length < ROUND_SIZE; scanned++) {
+        const entry = deck[(pos + scanned) % deck.length]
+        if (seen.has(entry.romaji)) continue
+        seen.add(entry.romaji)
+        slice.push(entry)
+      }
+      pageRef.current = (pos + scanned) % deck.length
+      resetBoard(slice)
+    } else {
+      resetBoard(pickRound(deck, ROUND_SIZE))
+    }
   }, [])
 
-  // Snapshot the pool into a round once on mount so mid-game store updates
-  // (recordPractice) never reshuffle the board.
-  useEffect(() => {
+  const start = useCallback(() => {
+    const snapshot = orderEntries(scoped, rowOrder)
+    if (snapshot.length === 0) return
+    deckRef.current = snapshot
+    orderRef.current = rowOrder
+    pageRef.current = 0
+    setSetup(false)
     startRound()
-  }, [startRound])
+  }, [scoped, rowOrder, startRound])
+
+  const backToSetup = useCallback(() => {
+    setSetup(true)
+    setRound(null)
+    setShowComplete(false)
+    setFinishedSec(null)
+  }, [])
 
   // Count-up timer, running from the first tap until the board is cleared.
   useEffect(() => {
@@ -268,8 +359,7 @@ export default function MatchingPage() {
     setSelectedKey(null)
 
     if (first.entry.id === tile.entry.id && first.kind !== tile.kind) {
-      // A kana ↔ romaji pair: clear it and feed the SRS.
-      recordPractice(tile.entry.id, true)
+      // A kana ↔ romaji pair: clear it with a spoken reward.
       speak(tile.entry.kana, useStore.getState().settings.audio)
       const nextCleared = new Set(cleared).add(tile.entry.id)
       setCleared(nextCleared)
@@ -281,9 +371,6 @@ export default function MatchingPage() {
         submitMatchingTime(sec)
       }
     } else {
-      // Wrong pair: every involved kana gets pulled earlier in the SRS.
-      const ids = new Set([first.entry.id, tile.entry.id])
-      for (const id of ids) recordPractice(id, false)
       setShakeKeys([first.key, tile.key])
     }
   }
@@ -291,14 +378,66 @@ export default function MatchingPage() {
   useKeyDown(
     useCallback(
       (e: KeyboardEvent) => {
-        if (finishedSec !== null && e.key === 'Enter') {
-          e.preventDefault()
-          startRound()
-        }
+        if (e.key !== 'Enter') return
+        e.preventDefault()
+        if (setup) start()
+        else if (finishedSec !== null) startRound()
       },
-      [finishedSec, startRound],
+      [setup, finishedSec, start, startRound],
     ),
   )
+
+  // ---------- Setup ----------
+  if (setup) {
+    const example = scoped[0] ?? { kana: 'あ', romaji: 'a' }
+    const toggleRow = (key: string) =>
+      setRowKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+    const canStart = scoped.length > 0
+    return (
+      <div className="mx-auto max-w-xl">
+        <PageHeader title="Matching" jp="対" subtitle={t.subtitle} backTo="/practice" />
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-hairline bg-surface px-6 py-8 text-center shadow-soft"
+        >
+          <div aria-hidden className="flex items-center justify-center gap-4">
+            <span className="font-kana text-6xl leading-none">{example.kana}</span>
+            <span className="text-2xl text-hairline">→</span>
+            <span className="text-3xl font-semibold tracking-wide text-muted">
+              {example.romaji}
+            </span>
+          </div>
+          <h2 className="mt-4 text-lg font-semibold">{t.ready}</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.intro(scoped.length)}</p>
+          <RowPicker
+            t={t}
+            rows={rowKeys}
+            onToggleRow={toggleRow}
+            onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+            onClear={() => setRowKeys([])}
+            script={rowScript}
+            onScript={setRowScript}
+            order={rowOrder}
+            onOrder={setRowOrder}
+            distractors="mixed"
+            onDistractors={() => {}}
+            showDistractors={false}
+          />
+          <motion.button
+            whileTap={canStart ? { scale: 0.98 } : undefined}
+            onClick={start}
+            disabled={!canStart}
+            aria-disabled={!canStart}
+            className="mt-6 w-full rounded-2xl bg-vermilion px-8 py-4 font-medium text-surface disabled:opacity-40 sm:w-auto"
+          >
+            {t.start}
+          </motion.button>
+          {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
+        </motion.div>
+      </div>
+    )
+  }
 
   if (round === null) return null
 
@@ -311,6 +450,7 @@ export default function MatchingPage() {
         newBest={newBest}
         entries={round}
         onPlayAgain={startRound}
+        onChangeRows={backToSetup}
       />
     )
   }
@@ -325,11 +465,20 @@ export default function MatchingPage() {
         subtitle={t.subtitle}
         backTo="/practice"
         actions={
-          best !== null ? (
-            <div className="rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-sm tabular-nums text-muted shadow-soft">
-              {t.bestChip(formatClock(best))}
-            </div>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={backToSetup}
+              className="rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-sm text-muted shadow-soft transition-colors hover:text-sumi"
+            >
+              {t.changeRows}
+            </button>
+            {best !== null ? (
+              <div className="rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-sm tabular-nums text-muted shadow-soft">
+                {t.bestChip(formatClock(best))}
+              </div>
+            ) : undefined}
+          </div>
         }
       />
 

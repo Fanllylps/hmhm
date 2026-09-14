@@ -1,20 +1,41 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { hasJapaneseVoice, speak, speechAvailable } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { pickChoices, usePracticePool } from '../lib/practice'
-import { useStore, type Lang } from '../stores/store'
+import { pickChoices } from '../lib/practice'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type DistractorScope,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
+import type { Lang } from '../stores/store'
 
 const EN = {
   title: 'Listening',
   idleSubtitle: 'Hear a kana, pick the one you heard',
-  trainEar: 'Train your ear',
+  trainEar: 'Pick your rows',
   intro: (n: number) =>
-    `Each round speaks one of the ${n} kana in your pool. Misses pull that card back into review sooner.`,
+    `Each round speaks one of the ${n} kana you chose. In order follows the gojuon sequence, shuffle mixes them. Scores here stay separate from Review.`,
   startBtn: 'Start listening',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   noSpeech:
     'This browser has no speech support — Listening needs a Japanese text-to-speech voice. Try Chrome, Edge or Safari.',
   noVoice:
@@ -34,10 +55,22 @@ const EN = {
 const ID: typeof EN = {
   title: 'Listening',
   idleSubtitle: 'Dengar sebuah kana, pilih yang kamu dengar',
-  trainEar: 'Latih telingamu',
+  trainEar: 'Pilih barismu',
   intro: (n: number) =>
-    `Tiap ronde mengucapkan salah satu dari ${n} kana di pool-mu. Kalau salah, kartu itu kembali ke review lebih cepat.`,
+    `Tiap ronde mengucapkan salah satu dari ${n} kana pilihanmu. Berurutan mengikuti urutan gojuon, acak mencampurnya. Nilai di sini tidak mengubah Review.`,
   startBtn: 'Mulai mendengarkan',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   noSpeech:
     'Browser ini tidak punya dukungan text-to-speech — Listening butuh suara text-to-speech bahasa Jepang. Coba Chrome, Edge, atau Safari.',
   noVoice:
@@ -97,16 +130,15 @@ function StatPill({ value, label, accent }: { value: string; label: string; acce
 }
 
 export default function ListeningPage() {
-  // Kanji are excluded: TTS picks one reading arbitrarily, which would make
-  // "pick what you heard" ambiguous and unfair.
-  const rawPool = usePracticePool()
-  const livePool = useMemo(() => {
-    const kanaOnly = rawPool.filter((e) => e.group !== 'kanji')
-    return kanaOnly.length > 0 ? kanaOnly : rawPool
-  }, [rawPool])
-  const recordPractice = useStore((s) => s.recordPractice)
   const lang = useLang()
   const t = STR[lang]
+
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const [distractors, setDistractors] = useState<DistractorScope>('mixed')
+  // Row entries are kana-only, so kanji ambiguity never reaches the TTS rounds.
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
 
   const [phase, setPhase] = useState<'idle' | 'playing'>('idle')
   const [round, setRound] = useState<Round | null>(null)
@@ -120,8 +152,11 @@ export default function ListeningPage() {
   /** Bumped on every utterance so the speaker ripple replays. */
   const [playTick, setPlayTick] = useState(0)
 
-  // Snapshot the pool at game start so store updates mid-game don't reshuffle.
+  // Snapshot the pool at game start so the running game never reshuffles.
   const poolRef = useRef<KanaEntry[]>([])
+  const orderRef = useRef<RowOrder>('random')
+  const scopeRef = useRef<DistractorScope>('mixed')
+  const seqRef = useRef(0)
   const advanceTimer = useRef<number | null>(null)
 
   // TTS capability: voices can load asynchronously, so re-check on voiceschanged.
@@ -152,14 +187,12 @@ export default function ListeningPage() {
     setPlayTick((t) => t + 1)
   }, [])
 
-  const nextRound = useCallback(
-    (previousId: string | null) => {
+  const dealRound = useCallback(
+    (entry: KanaEntry) => {
       const pool = poolRef.current
-      if (pool.length === 0) return
-      const candidates =
-        pool.length > 1 && previousId !== null ? pool.filter((e) => e.id !== previousId) : pool
-      const entry = candidates[Math.floor(Math.random() * candidates.length)]
-      setRound({ entry, choices: pickChoices(entry, pool, 4) })
+      const prefer =
+        scopeRef.current === 'row' ? pool.filter((e) => e.row === entry.row) : undefined
+      setRound({ entry, choices: pickChoices(entry, pool, 4, prefer) })
       setPicked(null)
       setRoundIndex((i) => i + 1)
       play(entry.kana)
@@ -167,16 +200,38 @@ export default function ListeningPage() {
     [play],
   )
 
+  const nextRound = useCallback(
+    (previousId: string | null) => {
+      const pool = poolRef.current
+      if (pool.length === 0) return
+      if (orderRef.current === 'sequential') {
+        const entry = pool[seqRef.current % pool.length]
+        seqRef.current += 1
+        dealRound(entry)
+        return
+      }
+      const candidates =
+        pool.length > 1 && previousId !== null ? pool.filter((e) => e.id !== previousId) : pool
+      dealRound(candidates[Math.floor(Math.random() * candidates.length)])
+    },
+    [dealRound],
+  )
+
   // Started from a tap/keypress — the user gesture unlocks speechSynthesis.
   const start = useCallback(() => {
-    poolRef.current = livePool
+    const snapshot = orderEntries(scoped, rowOrder)
+    if (snapshot.length === 0) return
+    poolRef.current = snapshot
+    orderRef.current = rowOrder
+    scopeRef.current = distractors
+    seqRef.current = 0
     setPhase('playing')
     setStreak(0)
     setBestStreak(0)
     setCorrectCount(0)
     setTotalCount(0)
     nextRound(null)
-  }, [livePool, nextRound])
+  }, [scoped, rowOrder, distractors, nextRound])
 
   const choose = useCallback(
     (index: number) => {
@@ -185,7 +240,6 @@ export default function ListeningPage() {
       if (!choice) return
       const correct = choice.id === round.entry.id
       setPicked(choice.id)
-      recordPractice(round.entry.id, correct)
       setTotalCount((n) => n + 1)
       if (correct) {
         setCorrectCount((n) => n + 1)
@@ -199,7 +253,7 @@ export default function ListeningPage() {
       }
       advanceTimer.current = window.setTimeout(() => nextRound(round.entry.id), ADVANCE_MS)
     },
-    [round, picked, streak, recordPractice, play, nextRound],
+    [round, picked, streak, play, nextRound],
   )
 
   useKeyDown(
@@ -227,27 +281,50 @@ export default function ListeningPage() {
   const accuracy = totalCount === 0 ? null : Math.round((correctCount / totalCount) * 100)
 
   if (phase === 'idle') {
+    const noTts = tts === 'unsupported'
+    const canStart = scoped.length > 0 && !noTts
+    const toggleRow = (key: string) =>
+      setRowKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
     return (
       <div className="mx-auto max-w-xl">
         <PageHeader title={t.title} jp="聴く" subtitle={t.idleSubtitle} backTo="/practice" />
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center rounded-2xl border border-hairline bg-surface px-6 py-14 text-center shadow-soft"
+          className="flex flex-col items-center rounded-2xl border border-hairline bg-surface px-6 py-10 text-center shadow-soft"
         >
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-washi text-sumi">
             <SpeakerIcon size={36} />
           </div>
           <h2 className="mt-6 text-xl font-semibold">{t.trainEar}</h2>
-          <p className="mt-2 max-w-sm text-sm text-muted">{t.intro(livePool.length)}</p>
+          <p className="mt-2 max-w-sm text-sm text-muted">{t.intro(scoped.length)}</p>
+          <div className="w-full max-w-sm">
+            <RowPicker
+              t={t}
+              rows={rowKeys}
+              onToggleRow={toggleRow}
+              onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+              onClear={() => setRowKeys([])}
+              script={rowScript}
+              onScript={setRowScript}
+              order={rowOrder}
+              onOrder={setRowOrder}
+              distractors={distractors}
+              onDistractors={setDistractors}
+              showDistractors
+            />
+          </div>
           <motion.button
-            whileTap={tts === 'unsupported' ? undefined : { scale: 0.98 }}
+            whileTap={canStart ? { scale: 0.98 } : undefined}
             onClick={start}
-            disabled={tts === 'unsupported'}
-            className="mt-8 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!canStart}
+            className="mt-6 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface disabled:cursor-not-allowed disabled:opacity-40"
           >
             {t.startBtn}
           </motion.button>
+          {scoped.length === 0 && (
+            <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>
+          )}
           {tts === 'unsupported' ? (
             <p className="mt-4 max-w-sm text-xs font-medium text-vermilion" role="alert">
               {t.noSpeech}

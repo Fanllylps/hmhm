@@ -32,7 +32,13 @@ export function usePracticePool(min = 8): KanaEntry[] {
  * Multiple-choice options: the correct entry plus distractors from the pool
  * with distinct romaji, shuffled.
  */
-export function pickChoices(correct: KanaEntry, pool: KanaEntry[], count = 4): KanaEntry[] {
+export function pickChoices(
+  correct: KanaEntry,
+  pool: KanaEntry[],
+  count = 4,
+  /** Draw distractors from here first (e.g. the same row); falls back to pool. */
+  prefer?: KanaEntry[],
+): KanaEntry[] {
   // Dedupe across primary AND alt spellings so sound-alikes never share a
   // round (を "wo"/alt "o" vs お "o" would make Listening rounds unwinnable).
   const spellings = (entry: KanaEntry) => [entry.romaji, ...entry.alt]
@@ -43,7 +49,7 @@ export function pickChoices(correct: KanaEntry, pool: KanaEntry[], count = 4): K
     for (const r of spellings(entry)) seen.add(r)
     distractors.push(entry)
   }
-  for (const entry of shuffle(pool)) {
+  for (const entry of shuffle(prefer ?? pool)) {
     if (distractors.length >= count - 1) break
     if (entry.id === correct.id || conflicts(entry)) continue
     if (entry.script !== correct.script) continue

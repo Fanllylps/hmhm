@@ -1,24 +1,43 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { localizedMeaning, useLang } from '../lib/i18n'
-import { shuffle, usePracticePool } from '../lib/practice'
+import { shuffle } from '../lib/practice'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
 import { loadStrokes } from '../lib/strokes'
 import { matchStroke, type Pt } from '../lib/strokeMatch'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
-  emptyTitle: 'No kana in your pool',
-  emptyBody: 'Enable at least one kana group in Settings first.',
+  emptyTitle: 'No drawable kana here',
+  emptyBody: 'These rows hold no single glyphs — yoon digraphs cannot be drawn. Pick other rows.',
   idleSubtitle: 'Draw each stroke in the right order and direction',
-  idleTitle: 'Learn by writing',
+  idleTitle: 'Pick your rows',
   idleBody: (n: number) =>
-    `You hear the sound and see the rōmaji — draw the character stroke by stroke with your finger. Wrong strokes shake; two misses reveal a hint. ${n} characters in your pool.`,
+    `You hear the sound and see the rōmaji — draw the character stroke by stroke with your finger. Wrong strokes shake; two misses reveal a hint. ${n} drawable characters in this pool.`,
   startWriting: 'Start writing',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   progress: (written: number, perfect: number) => `${written} written · ${perfect} perfect`,
   playAudio: 'Play audio',
   loading: 'Loading strokes…',
@@ -26,7 +45,6 @@ const EN = {
   skipArrow: 'Skip →',
   perfectBadge: 'Perfect!',
   doneBadge: 'Done',
-  clear: 'Clear',
   ghostOn: 'Ghost on',
   ghostOff: 'Ghost off',
   skip: 'Skip',
@@ -34,13 +52,25 @@ const EN = {
 }
 
 const ID: typeof EN = {
-  emptyTitle: 'Tidak ada kana di kumpulanmu',
-  emptyBody: 'Aktifkan dulu minimal satu kelompok kana di Setelan.',
+  emptyTitle: 'Tidak ada kana yang bisa digambar',
+  emptyBody: 'Baris ini tidak berisi glyph tunggal — digraf yoon tidak bisa digambar. Pilih baris lain.',
   idleSubtitle: 'Gambar tiap goresan dengan urutan dan arah yang benar',
-  idleTitle: 'Belajar sambil menulis',
+  idleTitle: 'Pilih barismu',
   idleBody: (n) =>
-    `Kamu mendengar bunyinya dan melihat rōmajinya — gambar karakternya goresan demi goresan dengan jarimu. Goresan yang salah akan bergetar; dua kali meleset memunculkan petunjuk. ${n} karakter di kumpulanmu.`,
+    `Kamu mendengar bunyinya dan melihat rōmajinya — gambar karakternya goresan demi goresan dengan jarimu. Goresan yang salah akan bergetar; dua kali meleset memunculkan petunjuk. ${n} karakter yang bisa digambar di pool ini.`,
   startWriting: 'Mulai menulis',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   progress: (written, perfect) => `${written} ditulis · ${perfect} sempurna`,
   playAudio: 'Putar audio',
   loading: 'Memuat goresan…',
@@ -48,7 +78,6 @@ const ID: typeof EN = {
   skipArrow: 'Lewati →',
   perfectBadge: 'Sempurna!',
   doneBadge: 'Selesai',
-  clear: 'Hapus',
   ghostOn: 'Bayangan aktif',
   ghostOff: 'Bayangan mati',
   skip: 'Lewati',
@@ -88,13 +117,16 @@ function samplePath(d: string, n = 32): Pt[] {
 const polyline = (pts: Pt[]) => pts.map((p) => `${p.x},${p.y}`).join(' ')
 
 export default function WritingPage() {
-  const fullPool = usePracticePool()
-  const recordPractice = useStore((s) => s.recordPractice)
   const lang = useLang()
   const t = STR[lang]
 
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
+
   // Only single glyphs are drawable (yōon digraphs are their component glyphs).
-  const pool = useMemo(() => fullPool.filter((e) => [...e.kana].length === 1), [fullPool])
+  const pool = useMemo(() => scoped.filter((e) => [...e.kana].length === 1), [scoped])
 
   const [phase, setPhase] = useState<'idle' | 'playing'>('idle')
   const [entry, setEntry] = useState<KanaEntry | null>(null)
@@ -111,6 +143,8 @@ export default function WritingPage() {
   const [seq, setSeq] = useState(0)
 
   const deckRef = useRef<KanaEntry[]>([])
+  const snapshotRef = useRef<KanaEntry[]>([])
+  const orderRef = useRef<RowOrder>('random')
   const mistakesRef = useRef(0)
   const strokeFailsRef = useRef(0)
   const drawingRef = useRef<Pt[]>([])
@@ -126,8 +160,16 @@ export default function WritingPage() {
   )
 
   const nextEntry = useCallback(() => {
-    if (deckRef.current.length === 0) deckRef.current = shuffle(pool)
-    const e = deckRef.current.pop()!
+    if (deckRef.current.length === 0) {
+      deckRef.current =
+        orderRef.current === 'random'
+          ? shuffle(snapshotRef.current)
+          : [...snapshotRef.current]
+    }
+    const e =
+      orderRef.current === 'random'
+        ? deckRef.current.pop()!
+        : deckRef.current.shift()!
     mistakesRef.current = 0
     strokeFailsRef.current = 0
     setEntry(e)
@@ -138,7 +180,7 @@ export default function WritingPage() {
     setShowHint(false)
     setGlyphDone(false)
     setSeq((s) => s + 1)
-  }, [pool])
+  }, [])
 
   // Load + sample stroke data whenever the glyph changes.
   useEffect(() => {
@@ -158,18 +200,20 @@ export default function WritingPage() {
   }, [entry])
 
   const start = useCallback(() => {
-    deckRef.current = shuffle(pool)
+    const snapshot = orderEntries(pool, rowOrder)
+    if (snapshot.length === 0) return
+    snapshotRef.current = snapshot
+    orderRef.current = rowOrder
+    deckRef.current = []
     setCompleted(0)
     setPerfect(0)
     setPhase('playing')
     nextEntry()
-  }, [pool, nextEntry])
+  }, [pool, rowOrder, nextEntry])
 
   const finishGlyph = useCallback(() => {
     if (!entry) return
     setGlyphDone(true)
-    const ok = mistakesRef.current <= 1
-    recordPractice(entry.id, ok)
     speak(entry.kana, useStore.getState().settings.audio)
     setCompleted((n) => n + 1)
     if (mistakesRef.current === 0) setPerfect((n) => n + 1)
@@ -177,7 +221,7 @@ export default function WritingPage() {
       timerRef.current = null
       nextEntry()
     }, 1100)
-  }, [entry, recordPractice, nextEntry])
+  }, [entry, nextEntry])
 
   const toView = useCallback((clientX: number, clientY: number): Pt => {
     const rect = svgRef.current!.getBoundingClientRect()
@@ -239,9 +283,8 @@ export default function WritingPage() {
   const skip = useCallback(() => {
     if (!entry) return
     if (timerRef.current !== null) return
-    recordPractice(entry.id, false)
     nextEntry()
-  }, [entry, recordPractice, nextEntry])
+  }, [entry, nextEntry])
 
   const restartGlyph = useCallback(() => {
     if (timerRef.current !== null) return
@@ -264,16 +307,10 @@ export default function WritingPage() {
     ),
   )
 
-  if (pool.length === 0) {
-    return (
-      <div className="mx-auto max-w-md">
-        <PageHeader title="Writing" jp="書く" backTo="/practice" />
-        <EmptyState title={t.emptyTitle}>{t.emptyBody}</EmptyState>
-      </div>
-    )
-  }
-
   if (phase === 'idle') {
+    const toggleRow = (key: string) =>
+      setRowKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+    const canStart = pool.length > 0
     return (
       <div className="mx-auto max-w-xl">
         <PageHeader
@@ -285,7 +322,7 @@ export default function WritingPage() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center rounded-2xl border border-hairline bg-surface px-6 py-14 text-center shadow-soft"
+          className="flex flex-col items-center rounded-2xl border border-hairline bg-surface px-6 py-10 text-center shadow-soft"
         >
           <span aria-hidden className="font-kana text-6xl">
             筆
@@ -294,13 +331,36 @@ export default function WritingPage() {
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
             {t.idleBody(pool.length)}
           </p>
+          <div className="w-full max-w-sm">
+            <RowPicker
+              t={t}
+              rows={rowKeys}
+              onToggleRow={toggleRow}
+              onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+              onClear={() => setRowKeys([])}
+              script={rowScript}
+              onScript={setRowScript}
+              order={rowOrder}
+              onOrder={setRowOrder}
+              distractors="mixed"
+              onDistractors={() => {}}
+              showDistractors={false}
+            />
+          </div>
           <motion.button
-            whileTap={{ scale: 0.98 }}
+            whileTap={canStart ? { scale: 0.98 } : undefined}
             onClick={start}
-            className="mt-8 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface"
+            disabled={!canStart}
+            aria-disabled={!canStart}
+            className="mt-6 w-full max-w-xs rounded-2xl bg-vermilion px-6 py-4 font-medium text-surface disabled:opacity-40"
           >
             {t.startWriting}
           </motion.button>
+          {!canStart && (
+            <p className="mt-3 max-w-sm text-xs text-vermilion">
+              {rowKeys.length === 0 ? t.emptyRows : t.emptyBody}
+            </p>
+          )}
         </motion.div>
       </div>
     )

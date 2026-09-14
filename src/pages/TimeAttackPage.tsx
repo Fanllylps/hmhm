@@ -1,26 +1,47 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import Confetti from '../components/Confetti'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { pickChoices, usePracticePool } from '../lib/practice'
+import { pickChoices } from '../lib/practice'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type DistractorScope,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
   title: 'Time Attack',
   idleSubtitle: 'Sixty seconds, as many kana as you can.',
-  beatClock: 'Beat the clock',
-  howTo:
-    'A kana appears — tap the matching rōmaji. Each correct answer scores a point. Misses flash the right answer and bring that kana back sooner in your reviews.',
+  beatClock: 'Pick your rows',
+  howTo: (n: number) =>
+    `A kana appears — tap the matching rōmaji. Each correct answer scores a point, misses just cost time. This pool holds ${n} kana and stays separate from Review.`,
   personalBest: 'Personal best',
   noBest: 'No best score yet — set the first one.',
   start: 'Start',
   idleHint: 'Enter to start · answer with 1–4',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   secondsLeft: (n: number) => `${n} seconds left`,
   score: 'Score',
   announceCorrect: (romaji: string) => `Correct — ${romaji}`,
@@ -39,13 +60,25 @@ const EN = {
 const ID: typeof EN = {
   title: 'Time Attack',
   idleSubtitle: 'Enam puluh detik, sebanyak mungkin kana.',
-  beatClock: 'Kalahkan waktu',
-  howTo:
-    'Sebuah kana muncul — ketuk rōmaji yang cocok. Tiap jawaban benar dapat satu poin. Kalau salah, jawaban yang benar berkedip sebentar dan kana itu muncul lagi lebih cepat di review-mu.',
+  beatClock: 'Pilih barismu',
+  howTo: (n: number) =>
+    `Sebuah kana muncul — ketuk rōmaji yang cocok. Tiap jawaban benar dapat satu poin, salah hanya buang waktu. Pool ini berisi ${n} kana dan tidak mengubah Review.`,
   personalBest: 'Rekor pribadi',
   noBest: 'Belum ada skor terbaik — cetak yang pertama.',
   start: 'Mulai',
   idleHint: 'Enter untuk mulai · jawab dengan 1–4',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   secondsLeft: (n: number) => `Sisa ${n} detik`,
   score: 'Skor',
   announceCorrect: (romaji: string) => `Benar — ${romaji}`,
@@ -76,11 +109,28 @@ interface Question {
   choices: KanaEntry[]
 }
 
-function makeQuestion(pool: KanaEntry[], excludeId: string | null): Question {
+function makeQuestion(
+  pool: KanaEntry[],
+  excludeId: string | null,
+  scope: DistractorScope,
+): Question {
   const candidates =
     excludeId !== null && pool.length > 1 ? pool.filter((e) => e.id !== excludeId) : pool
   const entry = candidates[Math.floor(Math.random() * candidates.length)]
-  return { entry, choices: pickChoices(entry, pool, 4) }
+  const prefer = scope === 'row' ? pool.filter((e) => e.row === entry.row) : undefined
+  return { entry, choices: pickChoices(entry, pool, 4, prefer) }
+}
+
+/** Next card in gojuon order, wrapping around the frozen deck. */
+function nextSequential(deck: KanaEntry[], posRef: { current: number }): KanaEntry {
+  const entry = deck[posRef.current % deck.length]
+  posRef.current += 1
+  return entry
+}
+
+function askFor(entry: KanaEntry, pool: KanaEntry[], scope: DistractorScope): Question {
+  const prefer = scope === 'row' ? pool.filter((e) => e.row === entry.row) : undefined
+  return { entry, choices: pickChoices(entry, pool, 4, prefer) }
 }
 
 function formatClock(seconds: number): string {
@@ -88,12 +138,16 @@ function formatClock(seconds: number): string {
 }
 
 export default function TimeAttackPage() {
-  const livePool = usePracticePool()
   const best = useStore((s) => s.best.timeAttack)
-  const recordPractice = useStore((s) => s.recordPractice)
   const submitScore = useStore((s) => s.submitScore)
   const lang = useLang()
   const t = STR[lang]
+
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const [distractors, setDistractors] = useState<DistractorScope>('mixed')
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [timeLeft, setTimeLeft] = useState(GAME_SECONDS)
@@ -105,9 +159,11 @@ export default function TimeAttackPage() {
   const [wrongPick, setWrongPick] = useState<string | null>(null)
   const [newRecord, setNewRecord] = useState(false)
 
-  // Pool is snapshotted at game start so store updates mid-game (every answer
-  // touches cards/activity) never reshuffle the running game.
+  // Deck is snapshotted at game start; sequential mode walks it in order.
   const poolRef = useRef<KanaEntry[]>([])
+  const orderRef = useRef<RowOrder>('random')
+  const scopeRef = useRef<DistractorScope>('mixed')
+  const posRef = useRef(0)
   const flashTimer = useRef<number | null>(null)
 
   const clearFlashTimer = useCallback(() => {
@@ -142,7 +198,12 @@ export default function TimeAttackPage() {
   const [announce, setAnnounce] = useState('')
 
   const start = useCallback(() => {
-    poolRef.current = livePool
+    const snapshot = orderEntries(scoped, rowOrder)
+    if (snapshot.length === 0) return
+    poolRef.current = snapshot
+    orderRef.current = rowOrder
+    scopeRef.current = distractors
+    posRef.current = 1
     clearFlashTimer()
     setScore(0)
     setAnswered(0)
@@ -150,14 +211,23 @@ export default function TimeAttackPage() {
     setWrongPick(null)
     setNewRecord(false)
     setAnnounce('')
-    setQuestion(makeQuestion(livePool, null))
+    setQuestion(
+      rowOrder === 'sequential'
+        ? askFor(snapshot[0], snapshot, distractors)
+        : makeQuestion(snapshot, null, distractors),
+    )
     setQIndex(0)
     setPhase('playing')
-  }, [livePool, clearFlashTimer])
+  }, [scoped, rowOrder, distractors, clearFlashTimer])
 
   const advance = useCallback(() => {
     setWrongPick(null)
-    setQuestion((q) => makeQuestion(poolRef.current, q?.entry.id ?? null))
+    if (orderRef.current === 'sequential') {
+      const pool = poolRef.current
+      setQuestion(askFor(nextSequential(pool, posRef), pool, scopeRef.current))
+    } else {
+      setQuestion((q) => makeQuestion(poolRef.current, q?.entry.id ?? null, scopeRef.current))
+    }
     setQIndex((i) => i + 1)
   }, [])
 
@@ -165,7 +235,6 @@ export default function TimeAttackPage() {
     (choice: KanaEntry) => {
       if (phase !== 'playing' || question === null || wrongPick !== null) return
       const correct = choice.id === question.entry.id
-      recordPractice(question.entry.id, correct)
       speak(question.entry.kana, useStore.getState().settings.audio)
       setAnswered((n) => n + 1)
       if (correct) {
@@ -182,7 +251,7 @@ export default function TimeAttackPage() {
         }, WRONG_FLASH_MS)
       }
     },
-    [phase, question, wrongPick, recordPractice, advance, t],
+    [phase, question, wrongPick, advance, t],
   )
 
   useKeyDown(
@@ -389,6 +458,9 @@ export default function TimeAttackPage() {
   }
 
   // ---------- Idle ----------
+  const toggleRow = (key: string) =>
+    setRowKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+  const canStart = scoped.length > 0
   return (
     <div className="mx-auto max-w-xl">
       <PageHeader title={t.title} jp="秒" backTo="/practice" subtitle={t.idleSubtitle} />
@@ -401,7 +473,7 @@ export default function TimeAttackPage() {
           速
         </span>
         <h2 className="mt-5 text-xl font-semibold">{t.beatClock}</h2>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">{t.howTo}</p>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">{t.howTo(scoped.length)}</p>
         <div className="mt-6 flex min-h-[32px] items-center justify-center gap-2.5 text-sm">
           {best > 0 ? (
             <>
@@ -415,13 +487,30 @@ export default function TimeAttackPage() {
             <span className="text-muted">{t.noBest}</span>
           )}
         </div>
+        <RowPicker
+          t={t}
+          rows={rowKeys}
+          onToggleRow={toggleRow}
+          onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+          onClear={() => setRowKeys([])}
+          script={rowScript}
+          onScript={setRowScript}
+          order={rowOrder}
+          onOrder={setRowOrder}
+          distractors={distractors}
+          onDistractors={setDistractors}
+          showDistractors
+        />
         <motion.button
-          whileTap={{ scale: 0.98 }}
+          whileTap={canStart ? { scale: 0.98 } : undefined}
           onClick={start}
-          className="mt-8 w-full rounded-2xl bg-vermilion py-4 text-lg font-medium text-surface"
+          disabled={!canStart}
+          aria-disabled={!canStart}
+          className="mt-6 w-full rounded-2xl bg-vermilion py-4 text-lg font-medium text-surface disabled:opacity-40"
         >
           {t.start}
         </motion.button>
+        {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
         <p className="mt-4 hidden text-xs text-muted sm:block">{t.idleHint}</p>
       </motion.div>
     </div>

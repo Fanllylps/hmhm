@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion'
 import Confetti from '../components/Confetti'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { usePracticePool } from '../lib/practice'
 import { matchesRomaji, normalizeInput } from '../lib/romaji'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
@@ -20,9 +27,21 @@ const EN = {
   rule2: (points: number) =>
     `The lowest kana pops first, +${points} points each. The rain falls faster as your score climbs.`,
   rule3: (lives: number) =>
-    `A kana that reaches the ground costs one of your ${lives} lives — and comes back sooner in Review.`,
+    `A kana that reaches the ground costs one of your ${lives} lives.`,
   bestScore: 'Best score',
   start: 'Start the rain',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   rainStopped: 'The rain has stopped',
   popped: (n: number) =>
     `${n} kana popped${n === 0 ? ' — the first drops are the hardest' : ''}`,
@@ -47,9 +66,21 @@ const ID: typeof EN = {
   rule2: (points: number) =>
     `Kana paling bawah meletus lebih dulu, +${points} poin per kana. Hujan makin cepat seiring skormu naik.`,
   rule3: (lives: number) =>
-    `Kana yang menyentuh tanah mengurangi satu dari ${lives} nyawamu — dan muncul lagi lebih cepat di Review.`,
+    `Kana yang menyentuh tanah mengurangi satu dari ${lives} nyawamu.`,
   bestScore: 'Skor terbaik',
   start: 'Mulai hujannya',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   rainStopped: 'Hujan sudah berhenti',
   popped: (n: number) =>
     `${n} kana meletus${n === 0 ? ' — tetes pertama memang paling sulit' : ''}`,
@@ -137,7 +168,17 @@ const IDLE_RAIN = [
   { kana: 'ん', left: 72, duration: 6.0, delay: 3.1 },
 ]
 
-function IdleScreen({ best, onStart }: { best: number; onStart: () => void }) {
+function IdleScreen({
+  best,
+  onStart,
+  picker,
+  canStart,
+}: {
+  best: number
+  onStart: () => void
+  picker: ReactNode
+  canStart: boolean
+}) {
   const t = STR[useLang()]
   return (
     <motion.div
@@ -185,14 +226,19 @@ function IdleScreen({ best, onStart }: { best: number; onStart: () => void }) {
         </div>
       )}
 
+      {picker}
+
       <motion.button
-        whileTap={{ scale: 0.98 }}
+        whileTap={canStart ? { scale: 0.98 } : undefined}
         onClick={onStart}
-        className="mt-6 w-full rounded-2xl bg-vermilion py-4 font-medium text-surface"
+        disabled={!canStart}
+        aria-disabled={!canStart}
+        className="mt-6 w-full rounded-2xl bg-vermilion py-4 font-medium text-surface disabled:opacity-40"
       >
         {t.start}
         <span className="ml-2 hidden text-xs opacity-70 sm:inline">Enter</span>
       </motion.button>
+      {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
     </motion.div>
   )
 }
@@ -258,14 +304,17 @@ function GameOverScreen({
 }
 
 export default function KanaRainPage() {
-  const recordPractice = useStore((s) => s.recordPractice)
   const submitScore = useStore((s) => s.submitScore)
   const lenient = useStore((s) => s.settings.lenient)
   const audio = useStore((s) => s.settings.audio)
   const best = useStore((s) => s.best.kanaRain)
-  const livePool = usePracticePool()
   const lang = useLang()
   const t = STR[lang]
+
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [fallers, setFallers] = useState<Faller[]>([])
@@ -283,6 +332,9 @@ export default function KanaRainPage() {
   const idRef = useRef(0)
   const lastLaneRef = useRef(-1)
   const poolRef = useRef<KanaEntry[]>([])
+  const orderRef = useRef<RowOrder>('random')
+  /** Next deck position for sequential spawns. */
+  const queueRef = useRef(0)
   const bestAtStartRef = useRef(0)
   const phaseRef = useRef<Phase>('idle')
   const refocusTimerRef = useRef<number | undefined>(undefined)
@@ -296,7 +348,11 @@ export default function KanaRainPage() {
   useEffect(() => () => window.clearTimeout(refocusTimerRef.current), [])
 
   const startGame = useCallback(() => {
-    poolRef.current = livePool // snapshot — store updates mid-game won't reshuffle
+    const snapshot = orderEntries(scoped, rowOrder)
+    if (snapshot.length === 0) return
+    poolRef.current = snapshot // snapshot — mid-game changes won't reshuffle
+    orderRef.current = rowOrder
+    queueRef.current = 0
     bestAtStartRef.current = useStore.getState().best.kanaRain
     fallersRef.current = []
     scoreRef.current = 0
@@ -312,7 +368,7 @@ export default function KanaRainPage() {
     setMissTick(0)
     setNewRecord(false)
     setPhase('playing')
-  }, [livePool])
+  }, [scoped, rowOrder])
 
   const quitGame = useCallback(() => {
     fallersRef.current = []
@@ -330,10 +386,9 @@ export default function KanaRainPage() {
       setScore(scoreRef.current)
       setFallers(fallersRef.current)
       setInput('')
-      recordPractice(target.entry.id, true)
       speak(target.entry.kana, audio)
     },
-    [recordPractice, audio],
+    [audio],
   )
 
   const handleChange = useCallback(
@@ -399,11 +454,26 @@ export default function KanaRainPage() {
       if (active.length >= MAX_FALLERS) return
       // Never two concurrent fallers that accept the same romaji.
       const taken = new Set(active.flatMap((f) => [f.entry.romaji, ...f.entry.alt]))
-      const candidates = poolRef.current.filter(
-        (e) => !taken.has(e.romaji) && !e.alt.some((a) => taken.has(a)),
-      )
-      if (candidates.length === 0) return
-      const entry = candidates[Math.floor(Math.random() * candidates.length)]
+      const deck = poolRef.current
+      const isTaken = (e: KanaEntry) =>
+        taken.has(e.romaji) || e.alt.some((a) => taken.has(a))
+      let entry: KanaEntry | undefined
+      if (orderRef.current === 'sequential') {
+        // Walk the gojuon order, skipping kana already falling.
+        for (let i = 0; i < deck.length; i++) {
+          const candidate = deck[(queueRef.current + i) % deck.length]
+          if (!isTaken(candidate)) {
+            entry = candidate
+            queueRef.current = (queueRef.current + i + 1) % deck.length
+            break
+          }
+        }
+        if (!entry) return
+      } else {
+        const candidates = deck.filter((e) => !isTaken(e))
+        if (candidates.length === 0) return
+        entry = candidates[Math.floor(Math.random() * candidates.length)]
+      }
       const lanes = [0, 1, 2, 3, 4].filter((l) => l !== lastLaneRef.current)
       const lane = lanes[Math.floor(Math.random() * lanes.length)]
       lastLaneRef.current = lane
@@ -445,7 +515,6 @@ export default function KanaRainPage() {
         if (y >= 1) {
           missed = true
           livesRef.current -= 1
-          recordPractice(f.entry.id, false)
         } else {
           kept.push({ ...f, y })
         }
@@ -473,7 +542,7 @@ export default function KanaRainPage() {
 
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [phase, recordPractice, submitScore])
+  }, [phase, submitScore])
 
   // Enter / Space starts a game from the idle and game-over screens.
   useKeyDown(
@@ -505,7 +574,31 @@ export default function KanaRainPage() {
       <AnimatePresence mode="wait" initial={false}>
         {phase === 'idle' && (
           <motion.div key="idle" exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-            <IdleScreen best={best} onStart={startGame} />
+            <IdleScreen
+              best={best}
+              onStart={startGame}
+              canStart={scoped.length > 0}
+              picker={
+                <RowPicker
+                  t={t}
+                  rows={rowKeys}
+                  onToggleRow={(key) =>
+                    setRowKeys((prev) =>
+                      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+                    )
+                  }
+                  onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+                  onClear={() => setRowKeys([])}
+                  script={rowScript}
+                  onScript={setRowScript}
+                  order={rowOrder}
+                  onOrder={setRowOrder}
+                  distractors="mixed"
+                  onDistractors={() => {}}
+                  showDistractors={false}
+                />
+              }
+            />
           </motion.div>
         )}
 

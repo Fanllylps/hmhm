@@ -1,14 +1,22 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import Confetti from '../components/Confetti'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import type { KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { shuffle, usePracticePool } from '../lib/practice'
+import { shuffle } from '../lib/practice'
 import { matchesRomaji, normalizeInput } from '../lib/romaji'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
@@ -16,10 +24,22 @@ const EN = {
   idleSubtitle: 'See the kana, type the rōmaji',
   playingSubtitle: 'Type the rōmaji, press Enter',
   intro:
-    "Type each kana's rōmaji and press Enter. Consecutive correct answers build your combo — a miss resets it and brings that kana back sooner in your reviews.",
+    'Pick your rows, then type each kana’s rōmaji and press Enter. Consecutive correct answers build your combo — a miss resets it. Scores here stay separate from Review.',
   poolSize: (n: number) => `${n} kana in rotation`,
   start: 'Start typing',
   orEnter: 'or press Enter',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   combo: 'Combo',
   best: (n: number) => `Best ×${n}`,
   sessionComplete: 'Session complete',
@@ -42,10 +62,22 @@ const ID: typeof EN = {
   idleSubtitle: 'Lihat kana-nya, ketik rōmaji-nya',
   playingSubtitle: 'Ketik rōmaji-nya, tekan Enter',
   intro:
-    'Ketik rōmaji tiap kana lalu tekan Enter. Jawaban benar berturut-turut membangun combo — sekali salah combo kembali ke nol dan kana itu muncul lagi lebih cepat di review-mu.',
+    'Pilih barismu, lalu ketik rōmaji tiap kana dan tekan Enter. Jawaban benar berturut-turut membangun combo — sekali salah combo kembali ke nol. Nilai di sini tidak mengubah Review.',
   poolSize: (n: number) => `${n} kana dalam rotasi`,
   start: 'Mulai mengetik',
   orEnter: 'atau tekan Enter',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   combo: 'Combo',
   best: (n: number) => `Terbaik ×${n}`,
   sessionComplete: 'Sesi selesai',
@@ -125,10 +157,13 @@ function ComboMeter({ combo, best }: { combo: number; best: number }) {
 }
 
 export default function TypingPage() {
-  const pool = usePracticePool()
-  const recordPractice = useStore((s) => s.recordPractice)
   const lang = useLang()
   const t = STR[lang]
+
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [current, setCurrent] = useState<KanaEntry | null>(null)
@@ -140,10 +175,11 @@ export default function TypingPage() {
   const [answered, setAnswered] = useState(0)
   const [correctCount, setCorrectCount] = useState(0)
 
-  // Snapshot of the practice pool taken at game start, so mid-game store
-  // updates (recordPractice) never reshuffle the running session.
+  // Snapshot of the scoped pool taken at game start, plus the order mode.
+  // Sequential drills cycle the gojuon order; random reshuffles each cycle.
   const deckRef = useRef<KanaEntry[]>([])
   const posRef = useRef(0)
+  const orderRef = useRef<RowOrder>('random')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const drawNext = useCallback(() => {
@@ -151,15 +187,19 @@ export default function TypingPage() {
     if (deck.length === 0) return
     let pos = posRef.current + 1
     if (pos >= deck.length) {
-      const last = deck[deck.length - 1]
-      const next = shuffle(deck)
-      // Avoid showing the same kana twice in a row across the reshuffle.
-      if (next.length > 1 && next[0].id === last.id) {
-        const j = 1 + Math.floor(Math.random() * (next.length - 1))
-        ;[next[0], next[j]] = [next[j], next[0]]
+      if (orderRef.current === 'sequential') {
+        pos = 0
+      } else {
+        const last = deck[deck.length - 1]
+        const next = shuffle(deck)
+        // Avoid showing the same kana twice in a row across the reshuffle.
+        if (next.length > 1 && next[0].id === last.id) {
+          const j = 1 + Math.floor(Math.random() * (next.length - 1))
+          ;[next[0], next[j]] = [next[j], next[0]]
+        }
+        deckRef.current = next
+        pos = 0
       }
-      deckRef.current = next
-      pos = 0
     }
     posRef.current = pos
     setCurrent(deckRef.current[pos])
@@ -167,9 +207,10 @@ export default function TypingPage() {
   }, [])
 
   const start = useCallback(() => {
-    const snapshot = shuffle(pool)
+    const snapshot = orderEntries(scoped, rowOrder)
     if (snapshot.length === 0) return
     deckRef.current = snapshot
+    orderRef.current = rowOrder
     posRef.current = 0
     setCurrent(snapshot[0])
     setSeq(0)
@@ -180,7 +221,7 @@ export default function TypingPage() {
     setAnswered(0)
     setCorrectCount(0)
     setPhase('playing')
-  }, [pool])
+  }, [scoped, rowOrder])
 
   const endSession = useCallback(() => {
     setFeedback(null)
@@ -193,7 +234,6 @@ export default function TypingPage() {
     if (normalizeInput(input).length === 0) return
     const settings = useStore.getState().settings
     const ok = matchesRomaji(input, current, settings.lenient)
-    recordPractice(current.id, ok)
     setAnswered((n) => n + 1)
     speak(current.kana, settings.audio)
     if (ok) {
@@ -248,7 +288,10 @@ export default function TypingPage() {
 
   // ---------- Idle ----------
   if (phase === 'idle') {
-    const example = pool[0]
+    const example = scoped[0] ?? { kana: 'あ', romaji: 'a' }
+    const toggleRow = (key: string) =>
+      setRowKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+    const canStart = scoped.length > 0
     return (
       <div className="mx-auto max-w-xl">
         <PageHeader
@@ -260,7 +303,7 @@ export default function TypingPage() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-hairline bg-surface px-6 py-12 text-center shadow-soft"
+          className="rounded-2xl border border-hairline bg-surface px-6 py-8 text-center shadow-soft"
         >
           <div aria-hidden className="flex items-center justify-center gap-4">
             <span className="font-kana text-6xl leading-none">{example.kana}</span>
@@ -269,19 +312,36 @@ export default function TypingPage() {
               {example.romaji}
             </span>
           </div>
-          <p className="mx-auto mt-6 max-w-sm text-sm text-muted">
+          <p className="mx-auto mt-4 max-w-sm text-sm text-muted">
             {t.intro}
           </p>
           <p className="mt-3 text-xs text-muted">
-            {t.poolSize(pool.length)}
+            {t.poolSize(scoped.length)}
           </p>
+          <RowPicker
+            t={t}
+            rows={rowKeys}
+            onToggleRow={toggleRow}
+            onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+            onClear={() => setRowKeys([])}
+            script={rowScript}
+            onScript={setRowScript}
+            order={rowOrder}
+            onOrder={setRowOrder}
+            distractors="mixed"
+            onDistractors={() => {}}
+            showDistractors={false}
+          />
           <motion.button
-            whileTap={{ scale: 0.98 }}
+            whileTap={canStart ? { scale: 0.98 } : undefined}
             onClick={start}
-            className="mt-8 w-full rounded-2xl bg-vermilion px-8 py-4 font-medium text-surface sm:w-auto"
+            disabled={!canStart}
+            aria-disabled={!canStart}
+            className="mt-6 w-full rounded-2xl bg-vermilion px-8 py-4 font-medium text-surface disabled:opacity-40 sm:w-auto"
           >
             {t.start}
           </motion.button>
+          {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
           <p className="mt-3 hidden text-xs text-muted sm:block">{t.orEnter}</p>
         </motion.div>
       </div>

@@ -1,21 +1,41 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import Confetti from '../components/Confetti'
 import Hanko from '../components/Hanko'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import type { KanaEntry } from '../data/kana'
 import { speak } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { shuffle, usePracticePool } from '../lib/practice'
+import { shuffle } from '../lib/practice'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
   subtitle: 'Match each kana to its reading',
   idleTitle: 'Find the pairs',
-  idleBody:
-    'Twelve cards hide six kana and their readings. Flip two at a time and clear the board in as few moves as you can — a missed pair brings that kana back for review sooner.',
+  idleBody: (n: number) =>
+    `Twelve cards hide six kana and their readings, drawn from just the rows you choose — ${n} kana in this pool. Flip two at a time and clear the board in as few moves as you can.`,
   startRound: 'Start round',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   pairsProgress: (matched: number, total: number) => `${matched} / ${total} pairs`,
   movesCount: (moves: number) => `${moves} move${moves === 1 ? '' : 's'}`,
   srStatus: (matched: number, total: number, moves: number) =>
@@ -23,7 +43,7 @@ const EN = {
   ariaKanaCard: (kana: string) => `Kana card ${kana}`,
   ariaReadingCard: (romaji: string) => `Reading card ${romaji}`,
   ariaFaceDown: 'Face-down card',
-  missHint: 'Misses send that kana back to review sooner.',
+  missHint: 'Misses just cost you extra moves.',
   allFound: 'All pairs found',
   summary: (pairs: number, moves: number) => `${pairs} pairs in ${moves} move${moves === 1 ? '' : 's'}`,
   perfectMemory: 'Perfect memory — not a single wasted flip.',
@@ -34,9 +54,21 @@ const EN = {
 const ID: typeof EN = {
   subtitle: 'Cocokkan tiap kana dengan cara bacanya',
   idleTitle: 'Temukan pasangannya',
-  idleBody:
-    'Dua belas kartu menyembunyikan enam kana dan cara bacanya. Balik dua kartu sekaligus dan bersihkan papan dengan langkah sesedikit mungkin — pasangan yang meleset bikin kana itu balik ke review lebih cepat.',
+  idleBody: (n: number) =>
+    `Dua belas kartu menyembunyikan enam kana dan cara bacanya, diambil dari baris pilihanmu — ${n} kana di pool ini. Balik dua kartu sekaligus dan bersihkan papan dengan langkah sesedikit mungkin.`,
   startRound: 'Mulai ronde',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   pairsProgress: (matched, total) => `${matched} / ${total} pasangan`,
   movesCount: (moves) => `${moves} langkah`,
   srStatus: (matched, total, moves) =>
@@ -44,7 +76,7 @@ const ID: typeof EN = {
   ariaKanaCard: (kana) => `Kartu kana ${kana}`,
   ariaReadingCard: (romaji) => `Kartu bacaan ${romaji}`,
   ariaFaceDown: 'Kartu tertutup',
-  missHint: 'Salah tebak bikin kana itu balik ke review lebih cepat.',
+  missHint: 'Salah tebak hanya menambah langkah.',
   allFound: 'Semua pasangan ditemukan',
   summary: (pairs, moves) => `${pairs} pasangan dalam ${moves} langkah`,
   perfectMemory: 'Memori sempurna — tidak ada langkah yang terbuang.',
@@ -68,26 +100,44 @@ interface FlipCard {
   entry: KanaEntry
 }
 
-function buildDeck(pool: KanaEntry[]): FlipCard[] {
+function buildDeck(pool: KanaEntry[], order: RowOrder, from: number): { cards: FlipCard[]; next: number } {
+  if (pool.length === 0) return { cards: [], next: 0 }
   // Dedupe by romaji so every reading maps to exactly one kana on the board
   // (じ/ぢ, or the same syllable across scripts, would be unwinnable guesses).
+  // Sequential pages through the gojuon order; random samples the pool.
   const seen = new Set<string>()
   const picks: KanaEntry[] = []
-  for (const entry of shuffle(pool)) {
+  let scanned = 0
+  const ordered = order === 'sequential' ? pool : shuffle(pool)
+  const start = order === 'sequential' ? from % pool.length : 0
+  for (; scanned < pool.length && picks.length < PAIRS; scanned++) {
+    const entry = ordered[(start + scanned) % pool.length]
     if (seen.has(entry.romaji)) continue
     seen.add(entry.romaji)
     picks.push(entry)
-    if (picks.length === PAIRS) break
   }
-  return shuffle(
-    picks.flatMap((entry): FlipCard[] => [
-      { uid: `${entry.id}:kana`, face: 'kana', entry },
-      { uid: `${entry.id}:romaji`, face: 'romaji', entry },
-    ]),
-  )
+  return {
+    cards: shuffle(
+      picks.flatMap((entry): FlipCard[] => [
+        { uid: `${entry.id}:kana`, face: 'kana', entry },
+        { uid: `${entry.id}:romaji`, face: 'romaji', entry },
+      ]),
+    ),
+    next: (start + scanned) % pool.length,
+  }
 }
 
-function IdleScreen({ onStart }: { onStart: () => void }) {
+function IdleScreen({
+  onStart,
+  picker,
+  canStart,
+  kanaCount,
+}: {
+  onStart: () => void
+  picker: ReactNode
+  canStart: boolean
+  kanaCount: number
+}) {
   const lang = useLang()
   const t = STR[lang]
   return (
@@ -104,14 +154,18 @@ function IdleScreen({ onStart }: { onStart: () => void }) {
         </span>
       </div>
       <h2 className="text-xl font-semibold">{t.idleTitle}</h2>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.idleBody}</p>
+      <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.idleBody(kanaCount)}</p>
+      {picker}
       <motion.button
-        whileTap={{ scale: 0.98 }}
+        whileTap={canStart ? { scale: 0.98 } : undefined}
         onClick={onStart}
-        className="mt-8 w-full rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface sm:w-auto sm:px-10"
+        disabled={!canStart}
+        aria-disabled={!canStart}
+        className="mt-6 w-full rounded-2xl bg-vermilion px-6 py-3.5 font-medium text-surface disabled:opacity-40 sm:w-auto sm:px-10"
       >
         {t.startRound}
       </motion.button>
+      {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
     </div>
   )
 }
@@ -173,10 +227,13 @@ function CompletionScreen({
 }
 
 export default function MemoryFlipPage() {
-  const pool = usePracticePool()
-  const recordPractice = useStore((s) => s.recordPractice)
   const lang = useLang()
   const t = STR[lang]
+
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [deck, setDeck] = useState<FlipCard[]>([])
@@ -197,15 +254,30 @@ export default function MemoryFlipPage() {
 
   const pairCount = deck.length / 2
 
-  const start = () => {
+  // Frozen deck snapshot for the running session, plus paging position.
+  const deckPoolRef = useRef<KanaEntry[]>([])
+  const orderRef = useRef<RowOrder>('random')
+  const pageRef = useRef(0)
+
+  const deal = useCallback(() => {
     clearTimers()
-    // Snapshot the pool now — mid-game store updates must not reshuffle the board.
-    setDeck(buildDeck(pool))
+    const { cards, next } = buildDeck(deckPoolRef.current, orderRef.current, pageRef.current)
+    pageRef.current = next
+    setDeck(cards)
     setFaceUp([])
     setMatched([])
     setMoves(0)
     setRound((r) => r + 1)
     setPhase('playing')
+  }, [])
+
+  const start = () => {
+    const snapshot = orderEntries(scoped, rowOrder)
+    if (snapshot.length === 0) return
+    deckPoolRef.current = snapshot
+    orderRef.current = rowOrder
+    pageRef.current = 0
+    deal()
   }
 
   const handleFlip = (card: FlipCard) => {
@@ -222,7 +294,6 @@ export default function MemoryFlipPage() {
     setMoves((m) => m + 1)
 
     if (first.entry.id === card.entry.id) {
-      recordPractice(first.entry.id, true)
       schedule(() => {
         const grown = [...matched, first.entry.id]
         setMatched(grown)
@@ -231,9 +302,6 @@ export default function MemoryFlipPage() {
         if (grown.length === pairCount) schedule(() => setPhase('done'), 700)
       }, MATCH_MS)
     } else {
-      // The kana glyph is the thing being learned — penalize its card.
-      const kanaCard = [first, card].find((c) => c.face === 'kana') ?? first
-      recordPractice(kanaCard.entry.id, false)
       schedule(() => setFaceUp([]), MISMATCH_MS)
     }
   }
@@ -258,7 +326,31 @@ export default function MemoryFlipPage() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
           >
-            <IdleScreen onStart={start} />
+            <IdleScreen
+              onStart={start}
+              canStart={scoped.length > 0}
+              kanaCount={scoped.length}
+              picker={
+                <RowPicker
+                  t={t}
+                  rows={rowKeys}
+                  onToggleRow={(key) =>
+                    setRowKeys((prev) =>
+                      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+                    )
+                  }
+                  onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+                  onClear={() => setRowKeys([])}
+                  script={rowScript}
+                  onScript={setRowScript}
+                  order={rowOrder}
+                  onOrder={setRowOrder}
+                  distractors="mixed"
+                  onDistractors={() => {}}
+                  showDistractors={false}
+                />
+              }
+            />
           </motion.div>
         )}
 
@@ -370,7 +462,7 @@ export default function MemoryFlipPage() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
           >
-            <CompletionScreen entries={entries} moves={moves} onPlayAgain={start} />
+            <CompletionScreen entries={entries} moves={moves} onPlayAgain={deal} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,21 +1,42 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import PageHeader from '../components/PageHeader'
+import RowPicker from '../components/RowPicker'
 import { type KanaEntry } from '../data/kana'
 import { useKeyDown } from '../hooks/useKeyDown'
 import { speak } from '../lib/audio'
 import { useLang } from '../lib/i18n'
-import { pickChoices, usePracticePool } from '../lib/practice'
+import { pickChoices } from '../lib/practice'
+import {
+  ALL_ROW_KEYS,
+  orderEntries,
+  rowEntries,
+  type DistractorScope,
+  type RowOrder,
+  type RowScript,
+} from '../lib/rowscope'
 import { useStore, type Lang } from '../stores/store'
 
 const EN = {
   title: 'Quiz',
   subtitle: 'Multiple choice, both directions',
-  ready: 'Ready when you are',
+  ready: 'Pick your rows',
   intro: (n: number) =>
-    `Endless rounds from your pool of ${n} kana. Questions flip direction at random — miss one and it comes back sooner in Review.`,
+    `Drill just the rows you choose — ${n} kana in this pool. In order follows the gojuon sequence, shuffle mixes them. Scores here stay separate from Review.`,
   startBtn: 'Start quiz',
   idleHint: 'Enter to start · 1–4 to answer',
+  emptyRows: 'Pick at least 1 row to start',
+  rowsLabel: 'Rows',
+  groupNames: { basic: 'Basic', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'All',
+  clear: 'Clear',
+  scriptLabel: 'Script',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Both' },
+  orderLabel: 'Order',
+  orders: { sequential: 'In order', random: 'Shuffle' },
+  distractorsLabel: 'Wrong answers',
+  distractors: { row: 'Same row', mixed: 'All kana' },
+  selectedCount: (n: number) => `${n} rows selected`,
   streak: 'Streak',
   best: 'Best',
   answered: 'Answered',
@@ -30,11 +51,23 @@ const EN = {
 const ID: typeof EN = {
   title: 'Quiz',
   subtitle: 'Pilihan ganda, dua arah',
-  ready: 'Mulai saat kamu siap',
+  ready: 'Pilih barismu',
   intro: (n: number) =>
-    `Ronde tanpa akhir dari ${n} kana di pool-mu. Arah pertanyaan berganti secara acak — kalau salah, kana itu muncul lagi lebih cepat di Review.`,
+    `Latihan khusus baris yang kamu pilih — ${n} kana di pool ini. Berurutan mengikuti urutan gojuon, acak mencampurnya. Nilai di sini tidak mengubah Review.`,
   startBtn: 'Mulai quiz',
   idleHint: 'Enter untuk mulai · Jawab dengan 1–4',
+  emptyRows: 'Pilih minimal 1 baris untuk mulai',
+  rowsLabel: 'Baris',
+  groupNames: { basic: 'Dasar', dakuten: 'Dakuten', handakuten: 'Handakuten', yoon: 'Yoon' },
+  selectAll: 'Semua',
+  clear: 'Hapus',
+  scriptLabel: 'Huruf',
+  scripts: { hiragana: 'Hiragana', katakana: 'Katakana', both: 'Keduanya' },
+  orderLabel: 'Urutan',
+  orders: { sequential: 'Berurutan', random: 'Acak' },
+  distractorsLabel: 'Jawaban salah',
+  distractors: { row: 'Sebaris', mixed: 'Semua kana' },
+  selectedCount: (n: number) => `${n} baris dipilih`,
   streak: 'Runtutan',
   best: 'Terbaik',
   answered: 'Dijawab',
@@ -60,12 +93,22 @@ interface Question {
   direction: Direction
 }
 
-function nextQuestion(pool: KanaEntry[], lastId: string | null): Question {
+function nextQuestion(
+  pool: KanaEntry[],
+  lastId: string | null,
+  scope: DistractorScope,
+): Question {
   const candidates = pool.length > 1 ? pool.filter((e) => e.id !== lastId) : pool
   const entry = candidates[Math.floor(Math.random() * candidates.length)]
+  return askFor(entry, pool, scope)
+}
+
+/** Build a question for a fixed entry (used by sequential order). */
+function askFor(entry: KanaEntry, pool: KanaEntry[], scope: DistractorScope): Question {
+  const prefer = scope === 'row' ? pool.filter((e) => e.row === entry.row) : undefined
   return {
     entry,
-    choices: pickChoices(entry, pool, 4),
+    choices: pickChoices(entry, pool, 4, prefer),
     direction: Math.random() < 0.5 ? 'kana' : 'romaji',
   }
 }
@@ -107,12 +150,16 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function QuizPage() {
-  const livePool = usePracticePool()
-  const recordPractice = useStore((s) => s.recordPractice)
   const lang = useLang()
   const t = STR[lang]
 
-  /** Snapshot of the practice pool, frozen at game start. */
+  const [rowKeys, setRowKeys] = useState<string[]>(ALL_ROW_KEYS)
+  const [rowScript, setRowScript] = useState<RowScript>('both')
+  const [rowOrder, setRowOrder] = useState<RowOrder>('random')
+  const [distractors, setDistractors] = useState<DistractorScope>('mixed')
+  const scoped = useMemo(() => rowEntries(rowKeys, rowScript), [rowKeys, rowScript])
+
+  /** Snapshot of the scoped pool, frozen at game start. */
   const [pool, setPool] = useState<KanaEntry[] | null>(null)
   const [question, setQuestion] = useState<Question | null>(null)
   const [round, setRound] = useState(0)
@@ -133,19 +180,27 @@ export default function QuizPage() {
     [],
   )
 
+  /** Position of the next card when drilling in gojuon order. */
+  const seqRef = useRef(0)
+
   const start = useCallback(() => {
-    const snapshot = livePool
+    const snapshot = orderEntries(scoped, rowOrder)
+    if (snapshot.length === 0) return
     setPool(snapshot)
-    setQuestion(nextQuestion(snapshot, null))
+    if (rowOrder === 'sequential') {
+      seqRef.current = 1
+      setQuestion(askFor(snapshot[0], snapshot, distractors))
+    } else {
+      setQuestion(nextQuestion(snapshot, null, distractors))
+    }
     setRound(1)
-  }, [livePool])
+  }, [scoped, rowOrder, distractors])
 
   const pick = useCallback(
     (choice: KanaEntry) => {
       if (!question || !pool || picked !== null) return
       const correct = choice.id === question.entry.id
       setPicked(choice.id)
-      recordPractice(question.entry.id, correct)
       speak(question.entry.kana, useStore.getState().settings.audio)
       setAnswered((n) => n + 1)
       if (correct) {
@@ -161,10 +216,16 @@ export default function QuizPage() {
         timerRef.current = null
         setPicked(null)
         setRound((r) => r + 1)
-        setQuestion(nextQuestion(pool, question.entry.id))
+        if (rowOrder === 'sequential') {
+          const entry = pool[seqRef.current % pool.length]
+          seqRef.current += 1
+          setQuestion(askFor(entry, pool, distractors))
+        } else {
+          setQuestion(nextQuestion(pool, question.entry.id, distractors))
+        }
       }, ADVANCE_MS)
     },
-    [question, pool, picked, streak, recordPractice],
+    [question, pool, picked, streak, rowOrder, distractors],
   )
 
   useKeyDown(
@@ -186,6 +247,9 @@ export default function QuizPage() {
 
   // ---------- Idle / start screen ----------
   if (question === null || pool === null) {
+    const toggleRow = (key: string) =>
+      setRowKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
+    const canStart = scoped.length > 0
     return (
       <div className="mx-auto max-w-xl">
         <PageHeader title={t.title} jp="選択" subtitle={t.subtitle} backTo="/practice" />
@@ -193,22 +257,39 @@ export default function QuizPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
-          className="rounded-2xl border border-hairline bg-surface px-6 py-12 text-center shadow-soft"
+          className="rounded-2xl border border-hairline bg-surface px-6 py-8 text-center shadow-soft"
         >
           <div aria-hidden className="flex items-baseline justify-center gap-5">
             <span className="font-kana text-6xl">あ</span>
             <span className="text-2xl text-muted">⇄</span>
             <span className="text-5xl font-semibold tracking-wide">a</span>
           </div>
-          <h2 className="mt-7 text-lg font-semibold">{t.ready}</h2>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.intro(livePool.length)}</p>
+          <h2 className="mt-5 text-lg font-semibold">{t.ready}</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.intro(scoped.length)}</p>
+          <RowPicker
+            t={t}
+            rows={rowKeys}
+            onToggleRow={toggleRow}
+            onSelectAll={() => setRowKeys(ALL_ROW_KEYS)}
+            onClear={() => setRowKeys([])}
+            script={rowScript}
+            onScript={setRowScript}
+            order={rowOrder}
+            onOrder={setRowOrder}
+            distractors={distractors}
+            onDistractors={setDistractors}
+            showDistractors
+          />
           <motion.button
-            whileTap={{ scale: 0.98 }}
+            whileTap={canStart ? { scale: 0.98 } : undefined}
             onClick={start}
-            className="mt-8 w-full rounded-2xl bg-vermilion py-3.5 font-medium text-surface sm:w-auto sm:px-12"
+            disabled={!canStart}
+            aria-disabled={!canStart}
+            className="mt-6 w-full rounded-2xl bg-vermilion py-3.5 font-medium text-surface disabled:opacity-40 sm:w-auto sm:px-12"
           >
             {t.startBtn}
           </motion.button>
+          {!canStart && <p className="mt-3 text-xs text-vermilion">{t.emptyRows}</p>}
           <p className="mt-4 hidden text-xs text-muted sm:block">{t.idleHint}</p>
         </motion.div>
       </div>
